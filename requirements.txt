@@ -6,4 +6,3 @@ pymongo==4.10.1
 bcrypt==4.2.0
 python-dotenv==1.0.1
 pytz==2024.2
-streamlit-autorefresh==1.0.1
