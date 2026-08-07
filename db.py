@@ -28,8 +28,6 @@ from config import (
 # ============================================================
 
 def get_db_connection():
-    """Get MongoDB connection with error handling"""
-    def get_db_connection():
     """Get MongoDB connection with error handling - Cloud optimized"""
     try:
         mongo_client = MongoClient(
@@ -41,7 +39,6 @@ def get_db_connection():
             retryWrites=True,
             w='majority'
         )
-        # Test connection
         mongo_client.admin.command('ping')
         return mongo_client
     except (ConnectionFailure, ServerSelectionTimeoutError) as e:
