@@ -2,7 +2,7 @@
 # Main Streamlit application - TRADE with MB
 # Paper Trading Platform - 24/7 Live Market
 # Database: MongoDB | Backup: JSON | Export: CSV
-from streamlit_autorefresh import st_autorefresh
+
 import bcrypt 
 import streamlit as st
 import pandas as pd
@@ -995,22 +995,311 @@ sync_data()
 # Dashboard Page
 # ============================================================
 
-def dashboard_page():
-    """Main dashboard - portfolio, live chart, watchlist, order placement"""
+# ============================================================
+# FRAGMENT 1: Watchlist - Auto refresh every 5 sec
+# ============================================================
 
-    st_autorefresh(interval=5000, key="dashboard_refresh")
-
-    st.title("📈 TRADE with MB - Pro Paper Trading")
-    top_bar()
+@st.fragment(run_every=5)
+def watchlist_fragment():
+    """Watchlist section - Only this refreshes"""
+    # Update prices in background
     update_prices()
     check_pending_orders()
+    
+    prices = st.session_state.market_prices
+    
+    st.subheader("📋 Watchlist")
+    
+    search_watch = st.text_input(
+        "🔍 Search",
+        key="watchlist_search",
+        placeholder="Search stock..."
+    )
+
+    for stock in STOCKS.keys():
+        if search_watch and search_watch.upper() not in stock:
+            continue
+
+        price = prices.get(stock, STOCK_BASE_PRICES[stock])
+        base = STOCK_BASE_PRICES[stock]
+        change = ((price - base) / base) * 100
+        icon = "🟢" if change >= 0 else "🔴"
+        owned = get_holding_qty(stock)
+        own_icon = "💼" if owned > 0 else ""
+
+        btn_label = f"{icon} {stock} {own_icon}\n₹{price:.2f} ({change:+.2f}%)"
+
+        if st.button(
+            btn_label,
+            key=f"watch_{stock}",
+            use_container_width=True
+        ):
+            st.session_state.selected_stock = stock
+            st.rerun()
+
+
+# ============================================================
+# FRAGMENT 2: Chart - Auto refresh every 5 sec
+# ============================================================
+
+@st.fragment(run_every=5)
+def chart_fragment():
+    """Chart section - Only this refreshes"""
+    prices = st.session_state.market_prices
+    selected = st.session_state.selected_stock
+    
+    st.subheader(f"📈 {selected} Live Chart")
+
+    candles = get_candles(selected, limit=50)
+
+    if candles and len(candles) > 5:
+        dates = [c["timestamp"] for c in candles]
+        opens = [c["open"] for c in candles]
+        highs = [c["high"] for c in candles]
+        lows = [c["low"] for c in candles]
+        closes = [c["close"] for c in candles]
+
+        fig = go.Figure(data=[go.Candlestick(
+            x=dates,
+            open=opens,
+            high=highs,
+            low=lows,
+            close=closes,
+            increasing_line_color="#00D09C",
+            decreasing_line_color="#F85149"
+        )])
+
+        fig.update_layout(
+            template="plotly_dark",
+            height=400,
+            margin=dict(l=0, r=0, t=30, b=0),
+            xaxis_rangeslider_visible=False,
+            xaxis=dict(
+                range=[
+                    dates[-30] if len(dates) > 30 else dates[0],
+                    dates[-1]
+                ]
+            )
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        base_price = prices.get(selected, STOCK_BASE_PRICES[selected])
+        chart_prices = [
+            base_price * (1 + np.random.normal(0, 0.008))
+            for _ in range(50)
+        ]
+        fig = go.Figure(data=[go.Scatter(
+            y=chart_prices,
+            line=dict(color="#00D09C", width=2)
+        )])
+        fig.update_layout(
+            template="plotly_dark",
+            height=400,
+            margin=dict(l=0, r=0, t=30, b=0)
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption("⏳ Generating live data... Please wait.")
+
+    st.caption("🔄 Chart auto-updates every 5 seconds")
+
+
+# ============================================================
+# FRAGMENT 3: News - Auto refresh every 60 sec
+# ============================================================
+
+@st.fragment(run_every=60)
+def news_fragment():
+    """News section - Refreshes every 60 sec"""
+    st.subheader("📰 Market News")
+    
+    if time.time() - st.session_state.news_update_time > 60:
+        st.session_state.news = random.sample(FAKE_NEWS_POOL, 5)
+        st.session_state.news_update_time = time.time()
+
+    for n in st.session_state.news:
+        st.markdown(
+            f'<div class="news">🔔 {n}</div>',
+            unsafe_allow_html=True
+        )
+
+
+# ============================================================
+# STATIC SECTIONS - NO Auto Refresh
+# ============================================================
+
+def order_section():
+    """Order placement - No auto refresh"""
+    prices = st.session_state.market_prices
+    stock = st.session_state.selected_stock
+    price = prices.get(stock, STOCK_BASE_PRICES[stock])
+    owned_qty = get_holding_qty(stock)
+    avg_price = get_holding_avg(stock)
+
+    st.subheader("📝 Place Order")
+    st.metric(stock, f"₹{price:.2f}")
+
+    order_type = st.selectbox(
+        "Order Type",
+        [ORDER_TYPE_MARKET, ORDER_TYPE_LIMIT, ORDER_TYPE_SL],
+        key="order_type_select"
+    )
+    qty = st.number_input("Quantity", min_value=1, max_value=100, value=1, step=1)
+
+    limit_price = price
+    if order_type != ORDER_TYPE_MARKET:
+        limit_price = st.number_input(
+            "Trigger Price",
+            min_value=0.01,
+            value=float(round(price, 2)),
+            step=0.05
+        )
+
+    est_brokerage = round(price * qty * BROKERAGE_RATE, 2)
+    st.markdown(
+        f'<div class="brokerage-info">'
+        f'Est. Brokerage: ₹{est_brokerage:.2f} | '
+        f'Total Cost: ₹{(price * qty + est_brokerage):,.2f}'
+        f'</div>',
+        unsafe_allow_html=True
+    )
+
+    col_b, col_s = st.columns(2)
+
+    if col_b.button("BUY", use_container_width=True, type="primary"):
+        place_order("BUY", order_type, stock, qty, limit_price)
+
+    if owned_qty > 0:
+        if col_s.button(
+            f"SELL ({owned_qty})",
+            use_container_width=True
+        ):
+            place_order("SELL", order_type, stock, min(qty, owned_qty), limit_price)
+        st.caption(
+            f"💼 Holding: {owned_qty} | Avg: ₹{avg_price:.2f}"
+        )
+    else:
+        col_s.button(
+            "SELL",
+            disabled=True,
+            use_container_width=True,
+            help="Buy first to sell"
+        )
+
+
+def holdings_section():
+    """Holdings - Static"""
+    st.subheader("💼 Holdings")
+    prices = st.session_state.market_prices
+    holdings_data = []
+
+    portfolio = st.session_state.portfolio
+    if portfolio:
+        for stk, holding in portfolio.items():
+            if isinstance(holding, dict):
+                qty = holding.get("qty", 0)
+                avg = holding.get("avg_price", 0)
+            else:
+                qty = int(holding) if holding else 0
+                avg = 0
+
+            if qty > 0:
+                ltp = prices.get(stk, STOCK_BASE_PRICES.get(stk, 0))
+                value = round(qty * ltp, 2)
+                pnl = round((ltp - avg) * qty, 2)
+                pnl_pct = round(((ltp - avg) / avg * 100), 2) if avg > 0 else 0
+
+                holdings_data.append({
+                    "Stock": stk,
+                    "Qty": qty,
+                    "Avg": f"₹{avg:.2f}",
+                    "LTP": f"₹{ltp:.2f}",
+                    "Value": f"₹{value:,.2f}",
+                    "P&L": f"₹{pnl:,.2f} ({pnl_pct:+.1f}%)"
+                })
+
+    if holdings_data:
+        st.dataframe(
+            pd.DataFrame(holdings_data),
+            use_container_width=True,
+            hide_index=True
+        )
+    else:
+        st.info("No holdings yet. Buy a stock first!")
+
+
+def orderbook_section():
+    """Order book - Static"""
+    st.subheader("📜 Order Book")
+    login_id = st.session_state.current_user.get("login_id", "")
+    orders = get_orders(login_id, limit=50)
+
+    if orders:
+        orders_display = []
+        for o in orders[::-1]:
+            orders_display.append({
+                "Time": o.get("Time", ""),
+                "Type": o.get("Type", ""),
+                "Stock": o.get("Stock", ""),
+                "Qty": o.get("Qty", 0),
+                "Price": f"₹{float(o.get('Price', 0)):.2f}",
+                "Status": o.get("Status", "")
+            })
+        st.dataframe(
+            pd.DataFrame(orders_display),
+            use_container_width=True,
+            hide_index=True
+        )
+    else:
+        st.info("No orders yet. Place a trade!")
+
+
+def pending_orders_section():
+    """Pending orders - Static"""
+    st.subheader("⏳ Pending Orders")
+    st.caption("P&L from pending orders excluded from Total P&L")
+
+    pending = st.session_state.pending_orders
+    if pending:
+        pending_display = []
+        for o in pending:
+            pending_display.append({
+                "Type": o.get("type", ""),
+                "Stock": o.get("stock", ""),
+                "Qty": o.get("qty", 0),
+                "Price": f"₹{float(o.get('price', 0)):.2f}",
+                "Placed": o.get("placed_at", "")
+            })
+        st.dataframe(
+            pd.DataFrame(pending_display),
+            use_container_width=True,
+            hide_index=True
+        )
+
+        if st.button("🗑️ Cancel All Pending"):
+            st.session_state.pending_orders = []
+            save_session_data()
+            st.success("All pending orders cancelled")
+            st.rerun()
+    else:
+        st.info("No pending orders")
+
+
+# ============================================================
+# MAIN DASHBOARD - Uses Fragments
+# ============================================================
+
+def dashboard_page():
+    """Main dashboard - Fragment based, no full page refresh"""
+    
+    st.title("📈 TRADE with MB - Pro Paper Trading")
+    top_bar()
     check_day_reset()
 
-    prices       = st.session_state.market_prices
+    # Metrics section
+    prices = st.session_state.market_prices
     portfolio_value = get_portfolio_value()
-    net_worth    = round(st.session_state.balance + portfolio_value, 2)
+    net_worth = round(st.session_state.balance + portfolio_value, 2)
 
-    # Top metrics
     col1, col2, col3, col4, col5 = st.columns(5)
     col1.markdown(
         f'<div class="card"><b>Balance</b><br>₹{st.session_state.balance:,.2f}</div>',
@@ -1031,7 +1320,6 @@ def dashboard_page():
         f'<div class="card"><b>Net Worth</b><br>₹{net_worth:,.2f}</div>',
         unsafe_allow_html=True
     )
-
     total_trades = get_orders_count(
         st.session_state.current_user.get("login_id", "")
     )
@@ -1042,7 +1330,6 @@ def dashboard_page():
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Market always open - 24/7
     st.markdown(
         '<div style="display:flex;justify-content:center;">'
         '<div class="card" style="width:300px;text-align:center;">'
@@ -1052,280 +1339,32 @@ def dashboard_page():
     )
     st.divider()
 
-    # Three column layout
+    # Three column layout with fragments
     col_watch, col_chart, col_order = st.columns([1, 2, 1])
 
-    # --------------------------------------------------------
-    # Watchlist - All 25 stocks
-    # --------------------------------------------------------
+    # WATCHLIST - Fragment (auto refresh 5s)
     with col_watch:
-        st.subheader("📋 Watchlist")
+        watchlist_fragment()
 
-        # Search filter for watchlist
-        search_watch = st.text_input(
-            "🔍 Search",
-            key="watchlist_search",
-            placeholder="Search stock..."
-        )
-
-        for stock in STOCKS.keys():
-            if search_watch and search_watch.upper() not in stock:
-                continue
-
-            price    = prices.get(stock, STOCK_BASE_PRICES[stock])
-            base     = STOCK_BASE_PRICES[stock]
-            change   = ((price - base) / base) * 100
-            icon     = "🟢" if change >= 0 else "🔴"
-            owned    = get_holding_qty(stock)
-            own_icon = "💼" if owned > 0 else ""
-
-            btn_label = f"{icon} {stock} {own_icon}\n₹{price:.2f} ({change:+.2f}%)"
-
-            if st.button(
-                btn_label,
-                key=f"watch_{stock}",
-                use_container_width=True
-            ):
-                st.session_state.selected_stock = stock
-                st.rerun()
-
-    # --------------------------------------------------------
-    # Live Chart - Candlestick from MongoDB
-    # --------------------------------------------------------
+    # CHART + NEWS - Fragments
     with col_chart:
-        selected = st.session_state.selected_stock
-        st.subheader(f"📈 {selected} Live Chart")
+        chart_fragment()
+        news_fragment()
 
-        # Get candles from MongoDB
-        candles = get_candles(selected, limit=50)
-
-        if candles and len(candles) > 5:
-            dates  = [c["timestamp"] for c in candles]
-            opens  = [c["open"]  for c in candles]
-            highs  = [c["high"]  for c in candles]
-            lows   = [c["low"]   for c in candles]
-            closes = [c["close"] for c in candles]
-
-            fig = go.Figure(data=[go.Candlestick(
-                x=dates,
-                open=opens,
-                high=highs,
-                low=lows,
-                close=closes,
-                increasing_line_color="#00D09C",
-                decreasing_line_color="#F85149"
-            )])
-
-            # Auto scroll to latest - live moving chart
-            fig.update_layout(
-                template="plotly_dark",
-                height=400,
-                margin=dict(l=0, r=0, t=30, b=0),
-                xaxis_rangeslider_visible=False,
-                xaxis=dict(
-                    range=[
-                        dates[-30] if len(dates) > 30 else dates[0],
-                        dates[-1]
-                    ]
-                )
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            # Fallback line chart if not enough candles
-            base_price  = prices.get(selected, STOCK_BASE_PRICES[selected])
-            chart_prices = [
-                base_price * (1 + np.random.normal(0, 0.008))
-                for _ in range(50)
-            ]
-            fig = go.Figure(data=[go.Scatter(
-                y=chart_prices,
-                line=dict(color="#00D09C", width=2)
-            )])
-            fig.update_layout(
-                template="plotly_dark",
-                height=400,
-                margin=dict(l=0, r=0, t=30, b=0)
-            )
-            st.plotly_chart(fig, use_container_width=True)
-            st.caption("⏳ Generating live data... Refresh in a moment.")
-
-        st.caption("🔄 Live chart - Updates every 2 seconds")
-
-        # Market News - auto update every 60 sec
-        st.subheader("📰 Market News")
-        if time.time() - st.session_state.news_update_time > 60:
-            st.session_state.news = random.sample(FAKE_NEWS_POOL, 5)
-            st.session_state.news_update_time = time.time()
-
-        for n in st.session_state.news:
-            st.markdown(
-                f'<div class="news">🔔 {n}</div>',
-                unsafe_allow_html=True
-            )
-
-    # --------------------------------------------------------
-    # Order Placement Panel
-    # --------------------------------------------------------
+    # ORDER PANEL - No auto refresh
     with col_order:
-        st.subheader("📝 Place Order")
-
-        stock     = st.session_state.selected_stock
-        price     = prices.get(stock, STOCK_BASE_PRICES[stock])
-        owned_qty = get_holding_qty(stock)
-        avg_price = get_holding_avg(stock)
-
-        st.metric(stock, f"₹{price:.2f}")
-
-        order_type  = st.selectbox(
-            "Order Type",
-            [ORDER_TYPE_MARKET, ORDER_TYPE_LIMIT, ORDER_TYPE_SL],
-            key="order_type_select"
-        )
-        qty = st.number_input("Quantity", min_value=1, max_value=100, value=1, step=1)
-
-        limit_price = price
-        if order_type != ORDER_TYPE_MARKET:
-            limit_price = st.number_input(
-                "Trigger Price",
-                min_value=0.01,
-                value=float(round(price, 2)),
-                step=0.05
-            )
-
-        # Estimated brokerage display
-        est_brokerage = round(price * qty * BROKERAGE_RATE, 2)
-        st.markdown(
-            f'<div class="brokerage-info">'
-            f'Est. Brokerage: ₹{est_brokerage:.2f} | '
-            f'Total Cost: ₹{(price * qty + est_brokerage):,.2f}'
-            f'</div>',
-            unsafe_allow_html=True
-        )
-
-        col_b, col_s = st.columns(2)
-
-        if col_b.button("BUY", use_container_width=True, type="primary"):
-            place_order("BUY", order_type, stock, qty, limit_price)
-
-        if owned_qty > 0:
-            if col_s.button(
-                f"SELL ({owned_qty})",
-                use_container_width=True
-            ):
-                place_order("SELL", order_type, stock, min(qty, owned_qty), limit_price)
-            st.caption(
-                f"💼 Holding: {owned_qty} | Avg: ₹{avg_price:.2f}"
-            )
-        else:
-            col_s.button(
-                "SELL",
-                disabled=True,
-                use_container_width=True,
-                help="Buy first to sell"
-            )
+        order_section()
 
     st.divider()
 
-    # --------------------------------------------------------
-    # Holdings + Order Book + Pending Orders
-    # --------------------------------------------------------
+    # Bottom section - Static
     col1, col2, col3 = st.columns(3)
-
-    # Holdings table - Fresh data from session state
     with col1:
-        st.subheader("💼 Holdings")
-        holdings_data = []
-
-        # Ensure portfolio is loaded
-        portfolio = st.session_state.portfolio
-        if portfolio:
-            for stk, holding in portfolio.items():
-                if isinstance(holding, dict):
-                    qty = holding.get("qty", 0)
-                    avg = holding.get("avg_price", 0)
-                else:
-                    qty = int(holding) if holding else 0
-                    avg = 0
-
-                if qty > 0:
-                    ltp = prices.get(stk, STOCK_BASE_PRICES.get(stk, 0))
-                    value = round(qty * ltp, 2)
-                    pnl = round((ltp - avg) * qty, 2)
-                    pnl_pct = round(((ltp - avg) / avg * 100), 2) if avg > 0 else 0
-
-                    holdings_data.append({
-                        "Stock": stk,
-                        "Qty": qty,
-                        "Avg": f"₹{avg:.2f}",
-                        "LTP": f"₹{ltp:.2f}",
-                        "Value": f"₹{value:,.2f}",
-                        "P&L": f"₹{pnl:,.2f} ({pnl_pct:+.1f}%)"
-                    })
-
-        if holdings_data:
-            st.dataframe(
-                pd.DataFrame(holdings_data),
-                use_container_width=True,
-                hide_index=True
-            )
-        else:
-            st.info("No holdings yet. Buy a stock first!")
-
-    # Order Book - From MongoDB orders collection
+        holdings_section()
     with col2:
-        st.subheader("📜 Order Book")
-        login_id = st.session_state.current_user.get("login_id", "")
-        orders = get_orders(login_id, limit=50)
-
-        if orders:
-            orders_display = []
-            for o in orders[::-1]:
-                orders_display.append({
-                    "Time": o.get("Time", ""),
-                    "Type": o.get("Type", ""),
-                    "Stock": o.get("Stock", ""),
-                    "Qty": o.get("Qty", 0),
-                    "Price": f"₹{float(o.get('Price', 0)):.2f}",
-                    "Status": o.get("Status", "")
-                })
-            st.dataframe(
-                pd.DataFrame(orders_display),
-                use_container_width=True,
-                hide_index=True
-            )
-        else:
-            st.info("No orders yet. Place a trade!")
-
-    # Pending Orders - From session state
+        orderbook_section()
     with col3:
-        st.subheader("⏳ Pending Orders")
-        st.caption("P&L from pending orders excluded from Total P&L")
-
-        pending = st.session_state.pending_orders
-        if pending:
-            pending_display = []
-            for o in pending:
-                pending_display.append({
-                    "Type": o.get("type", ""),
-                    "Stock": o.get("stock", ""),
-                    "Qty": o.get("qty", 0),
-                    "Price": f"₹{float(o.get('price', 0)):.2f}",
-                    "Placed": o.get("placed_at", "")
-                })
-            st.dataframe(
-                pd.DataFrame(pending_display),
-                use_container_width=True,
-                hide_index=True
-            )
-
-            if st.button("🗑️ Cancel All Pending"):
-                st.session_state.pending_orders = []
-                save_session_data()
-                st.success("All pending orders cancelled")
-                st.rerun()
-        else:
-            st.info("No pending orders")
-
+        pending_orders_section()
 # ============================================================
 # Trade History Page
 # ============================================================
