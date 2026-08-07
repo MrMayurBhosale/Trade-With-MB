@@ -29,13 +29,17 @@ from config import (
 
 def get_db_connection():
     """Get MongoDB connection with error handling"""
+    def get_db_connection():
+    """Get MongoDB connection with error handling - Cloud optimized"""
     try:
         mongo_client = MongoClient(
             MONGO_URI,
             maxPoolSize=50,
-            serverSelectionTimeoutMS=5000,
-            connectTimeoutMS=5000,
-            socketTimeoutMS=5000
+            serverSelectionTimeoutMS=30000,
+            connectTimeoutMS=30000,
+            socketTimeoutMS=30000,
+            retryWrites=True,
+            w='majority'
         )
         # Test connection
         mongo_client.admin.command('ping')
