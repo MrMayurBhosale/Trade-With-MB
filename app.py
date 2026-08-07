@@ -1001,15 +1001,14 @@ sync_data()
 
 @st.fragment(run_every=5)
 def watchlist_fragment():
-    """Watchlist section - Only this refreshes"""
-    # Update prices in background
+    """Watchlist - prices update every 5 sec"""
     update_prices()
     check_pending_orders()
-    
+
     prices = st.session_state.market_prices
-    
+
     st.subheader("📋 Watchlist")
-    
+
     search_watch = st.text_input(
         "🔍 Search",
         key="watchlist_search",
@@ -1027,10 +1026,8 @@ def watchlist_fragment():
         owned = get_holding_qty(stock)
         own_icon = "💼" if owned > 0 else ""
 
-        btn_label = f"{icon} {stock} {own_icon}\n₹{price:.2f} ({change:+.2f}%)"
-
         if st.button(
-            btn_label,
+            f"{icon} {stock} {own_icon} | ₹{price:.2f} ({change:+.2f}%)",
             key=f"watch_{stock}",
             use_container_width=True
         ):
@@ -1042,65 +1039,60 @@ def watchlist_fragment():
 # FRAGMENT 2: Chart - Auto refresh every 5 sec
 # ============================================================
 
-@st.fragment(run_every=5)
+@st.fragment(run_every=8)
 def chart_fragment():
-    """Chart section - Only this refreshes"""
-    prices = st.session_state.market_prices
+    """Chart section - stable, no jumping"""
     selected = st.session_state.selected_stock
-    
+
     st.subheader(f"📈 {selected} Live Chart")
 
-    candles = get_candles(selected, limit=50)
+    candles = get_candles(selected, limit=80)
 
-    if candles and len(candles) > 5:
-        dates = [c["timestamp"] for c in candles]
-        opens = [c["open"] for c in candles]
-        highs = [c["high"] for c in candles]
-        lows = [c["low"] for c in candles]
-        closes = [c["close"] for c in candles]
+    if not candles or len(candles) < 3:
+        st.info("⏳ Live data generate hotey... 30 sec wait kara.")
+        return
 
-        fig = go.Figure(data=[go.Candlestick(
-            x=dates,
-            open=opens,
-            high=highs,
-            low=lows,
-            close=closes,
-            increasing_line_color="#00D09C",
-            decreasing_line_color="#F85149"
-        )])
+    dates = [c["timestamp"] for c in candles]
+    opens = [c["open"] for c in candles]
+    highs = [c["high"] for c in candles]
+    lows = [c["low"] for c in candles]
+    closes = [c["close"] for c in candles]
 
-        fig.update_layout(
-            template="plotly_dark",
-            height=400,
-            margin=dict(l=0, r=0, t=30, b=0),
-            xaxis_rangeslider_visible=False,
-            xaxis=dict(
-                range=[
-                    dates[-30] if len(dates) > 30 else dates[0],
-                    dates[-1]
-                ]
-            )
+    fig = go.Figure(data=[go.Candlestick(
+        x=dates,
+        open=opens,
+        high=highs,
+        low=lows,
+        close=closes,
+        increasing_line_color="#00D09C",
+        decreasing_line_color="#F85149"
+    )])
+
+    fig.update_layout(
+        template="plotly_dark",
+        height=400,
+        margin=dict(l=0, r=0, t=30, b=0),
+        xaxis_rangeslider_visible=False,
+        uirevision="chart_stable",
+        transition={"duration": 0},
+        xaxis=dict(
+            range=[
+                dates[-30] if len(dates) > 30 else dates[0],
+                dates[-1]
+            ]
         )
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        base_price = prices.get(selected, STOCK_BASE_PRICES[selected])
-        chart_prices = [
-            base_price * (1 + np.random.normal(0, 0.008))
-            for _ in range(50)
-        ]
-        fig = go.Figure(data=[go.Scatter(
-            y=chart_prices,
-            line=dict(color="#00D09C", width=2)
-        )])
-        fig.update_layout(
-            template="plotly_dark",
-            height=400,
-            margin=dict(l=0, r=0, t=30, b=0)
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        st.caption("⏳ Generating live data... Please wait.")
+    )
 
-    st.caption("🔄 Chart auto-updates every 5 seconds")
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        key="live_chart",
+        config={
+            "scrollZoom": True,
+            "displayModeBar": False
+        }
+    )
+    st.caption("🔄 Chart updates every 8 seconds")
 
 
 # ============================================================
