@@ -1406,11 +1406,8 @@ def top_bar():
 # WATCHLIST FRAGMENT - 8 sec, Fixed stock selection
 # ============================================================
 
-@st.fragment(run_every=8)
-def watchlist_fragment():
+def watchlist_section():
     try:
-        update_prices()
-        check_pending_orders()
         prices = st.session_state.market_prices
 
         st.markdown('<div class="section-header">📋 Watchlist</div>', unsafe_allow_html=True)
@@ -1432,9 +1429,9 @@ def watchlist_fragment():
             owned = get_holding_qty(stock)
             arrow = "▲" if change >= 0 else "▼"
             is_selected = stock == st.session_state.selected_stock
-            selected = "⭐" if is_selected else ""
+            selected_icon = "⭐" if is_selected else ""
 
-            btn_label = f"{selected} {arrow} {stock}  ₹{price:.2f}  ({change:+.2f}%)"
+            btn_label = f"{selected_icon} {arrow} {stock}  ₹{price:.2f}  ({change:+.2f}%)"
 
             if st.button(
                 btn_label,
@@ -1446,8 +1443,7 @@ def watchlist_fragment():
                     st.session_state.selected_stock = stock
                     st.session_state.candle_cache.pop(stock, None)
                     st.session_state.candle_cache_time.pop(stock, None)
-                    # FULL PAGE RERUN - so chart + order also update
-                    st.session_state._force_full_rerun = True
+                    st.rerun()
     except Exception as e:
         print(f"Watchlist error: {e}")
 
@@ -1459,6 +1455,9 @@ def watchlist_fragment():
 def chart_fragment():
     """Advanced trading chart - no dim, proper stock sync"""
     try:
+        update_prices()
+        check_pending_orders()
+
         selected = st.session_state.selected_stock
         prices = st.session_state.market_prices
         price = prices.get(selected, STOCK_BASE_PRICES[selected])
@@ -2141,8 +2140,8 @@ def dashboard_page():
     st.divider()
 
     col_watch, col_chart, col_order = st.columns([1, 2.5, 1])
-    with col_watch:
-        watchlist_fragment()
+        with col_watch:
+        watchlist_section()
 
     # Force full rerun when stock changes from watchlist
     if st.session_state.get("_force_full_rerun", False):
