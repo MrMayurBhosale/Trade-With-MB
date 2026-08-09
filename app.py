@@ -1,9 +1,9 @@
 # app.py
 # TRADE with MB - Paper Trading Platform
-# VERSION 6.0 - Complete: Advanced Chart + Fast Performance + All Features
+# VERSION 7.0 - Fixed: No Dim + Stock Sync + Realistic Charts
 # PART 1 OF 3
 
-import bcrypt 
+import bcrypt
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -53,7 +53,7 @@ st.set_page_config(
 )
 
 # ============================================================
-# Premium CSS - Fast + Smooth + Realistic
+# Premium CSS - Fixed: No Dim + Smooth + Realistic
 # ============================================================
 
 st.markdown("""
@@ -90,10 +90,10 @@ st.markdown("""
     --transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-*, *::before, *::after { 
-    box-sizing: border-box; 
-    margin: 0; 
-    padding: 0; 
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
 }
 
 html, body, .stApp {
@@ -613,7 +613,7 @@ hr {
     padding: 12px 4px 6px;
 }
 
-/* STOCK HEADERS - Chart & Order same style */
+/* STOCK HEADERS */
 .stock-header {
     display: flex;
     align-items: center;
@@ -688,21 +688,51 @@ hr {
     margin-bottom: 10px;
 }
 
-/* PERFORMANCE - No dim on refresh */
+/* ===== ANTI-DIM FIX - STRONG ===== */
 [data-testid="stPlotlyChart"],
+[data-testid="stPlotlyChart"] > div,
 [data-testid="stPlotlyChart"] iframe,
-.js-plotly-plot, .plotly, .plot-container {
+.js-plotly-plot, .plotly, .plot-container,
+.js-plotly-plot .plotly .plot-container {
     transition: none !important;
     opacity: 1 !important;
+    animation: none !important;
+    visibility: visible !important;
+    will-change: auto !important;
 }
 
-[data-testid="stFragment"] {
+[data-testid="stFragment"],
+[data-testid="stFragment"] > div,
+[data-testid="stFragment"] > div > div {
     transition: none !important;
     opacity: 1 !important;
+    animation: none !important;
+    visibility: visible !important;
+    transform: none !important;
+    will-change: auto !important;
 }
 
 [data-testid="stStatusWidget"] { display: none !important; }
 [data-testid="stFragment"] .stSpinner { display: none !important; }
+
+[data-testid="stFragment"][data-stale="true"],
+[data-testid="stFragment"][data-stale="true"] > div {
+    opacity: 1 !important;
+    transition: none !important;
+    pointer-events: auto !important;
+}
+
+.modebar-container { opacity: 1 !important; }
+
+.element-container {
+    transition: none !important;
+    opacity: 1 !important;
+}
+
+iframe {
+    transition: none !important;
+    opacity: 1 !important;
+}
 
 /* STREAMLIT OVERRIDES */
 .block-container {
@@ -837,12 +867,12 @@ def init_session_state():
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
-    
+
     if not st.session_state.news:
         try:
-            st.session_state.news = random.sample(FAKE_NEWS_POOL, 10)
+            st.session_state.news = random.sample(FAKE_NEWS_POOL, 6)
         except Exception:
-            st.session_state.news = FAKE_NEWS_POOL[:10] if FAKE_NEWS_POOL else []
+            st.session_state.news = FAKE_NEWS_POOL[:6] if FAKE_NEWS_POOL else []
 
 init_session_state()
 
@@ -975,11 +1005,11 @@ def get_portfolio_value():
     except: return 0.0
 
 # ============================================================
-# Auth Page - ORIGINAL SIZE (no changes)
+# Auth Page
 # ============================================================
 
 def auth_page():
-    """Login/Register/Forgot - Original layout"""
+    """Login/Register/Forgot"""
     st.title("📈 TRADE with MB")
     st.caption("Paper Trading Platform - Login or Create Account")
 
@@ -1144,7 +1174,7 @@ sync_data()
 # ============================================================
 
 # ============================================================
-# FAST PLACE ORDER - No unnecessary reloads
+# FAST PLACE ORDER
 # ============================================================
 
 def place_order(side, o_type, stock, qty, price):
@@ -1373,10 +1403,10 @@ def top_bar():
             st.rerun()
 
 # ============================================================
-# WATCHLIST FRAGMENT - Smooth 5 sec
+# WATCHLIST FRAGMENT - 8 sec, Fixed stock selection
 # ============================================================
 
-@st.fragment(run_every=5)
+@st.fragment(run_every=8)
 def watchlist_fragment():
     try:
         update_prices()
@@ -1401,29 +1431,32 @@ def watchlist_fragment():
             change = ((price - base) / base) * 100
             owned = get_holding_qty(stock)
             arrow = "▲" if change >= 0 else "▼"
-            selected = "⭐" if stock == st.session_state.selected_stock else ""
+            is_selected = stock == st.session_state.selected_stock
+            selected = "⭐" if is_selected else ""
 
             btn_label = f"{selected} {arrow} {stock}  ₹{price:.2f}  ({change:+.2f}%)"
-            
+
             if st.button(
                 btn_label,
                 key=f"watch_{stock}",
                 use_container_width=True,
                 help=f"Holdings: {owned}" if owned > 0 else stock
             ):
-                st.session_state.selected_stock = stock
-                st.rerun()
+                if st.session_state.selected_stock != stock:
+                    st.session_state.selected_stock = stock
+                    st.session_state.candle_cache.pop(stock, None)
+                    st.session_state.candle_cache_time.pop(stock, None)
+                    st.rerun()
     except Exception as e:
         print(f"Watchlist error: {e}")
 
 # ============================================================
-# ADVANCED CHART FRAGMENT - All features
-# 5 sec refresh, uirevision preserved, drawings, indicators
+# ADVANCED CHART FRAGMENT - 8 sec, No dim, Stock sync
 # ============================================================
 
-@st.fragment(run_every=5)
+@st.fragment(run_every=8)
 def chart_fragment():
-    """Advanced trading chart with all features"""
+    """Advanced trading chart - no dim, proper stock sync"""
     try:
         selected = st.session_state.selected_stock
         prices = st.session_state.market_prices
@@ -1500,17 +1533,14 @@ def chart_fragment():
             if st.button("🕯️ Candle", key="ct_candle", use_container_width=True,
                          type="primary" if st.session_state.chart_type == "candle" else "secondary"):
                 st.session_state.chart_type = "candle"
-                st.rerun()
         with ct2:
             if st.button("📈 Line", key="ct_line", use_container_width=True,
                          type="primary" if st.session_state.chart_type == "line" else "secondary"):
                 st.session_state.chart_type = "line"
-                st.rerun()
         with ct3:
             if st.button("🏔️ Area", key="ct_area", use_container_width=True,
                          type="primary" if st.session_state.chart_type == "area" else "secondary"):
                 st.session_state.chart_type = "area"
-                st.rerun()
 
         # === TOOLBAR ROW 2: Indicators ===
         st.markdown('<div style="font-size:10px;color:#484F58;letter-spacing:1px;margin:8px 0 4px 0;">INDICATORS</div>', unsafe_allow_html=True)
@@ -1519,64 +1549,53 @@ def chart_fragment():
             if st.button("🟡 SMA5", key="ind_sma5", use_container_width=True,
                          type="primary" if st.session_state.chart_show_sma5 else "secondary"):
                 st.session_state.chart_show_sma5 = not st.session_state.chart_show_sma5
-                st.rerun()
         with i2:
             if st.button("🔵 SMA10", key="ind_sma10", use_container_width=True,
                          type="primary" if st.session_state.chart_show_sma10 else "secondary"):
                 st.session_state.chart_show_sma10 = not st.session_state.chart_show_sma10
-                st.rerun()
         with i3:
             if st.button("🟣 SMA20", key="ind_sma20", use_container_width=True,
                          type="primary" if st.session_state.chart_show_sma20 else "secondary"):
                 st.session_state.chart_show_sma20 = not st.session_state.chart_show_sma20
-                st.rerun()
         with i4:
             if st.button("📊 Vol", key="ind_vol", use_container_width=True,
                          type="primary" if st.session_state.chart_show_volume else "secondary"):
                 st.session_state.chart_show_volume = not st.session_state.chart_show_volume
-                st.rerun()
         with i5:
             if st.button("📉 RSI", key="ind_rsi", use_container_width=True,
                          type="primary" if st.session_state.chart_show_rsi else "secondary"):
                 st.session_state.chart_show_rsi = not st.session_state.chart_show_rsi
-                st.rerun()
         with i6:
             if st.button("📈 MACD", key="ind_macd", use_container_width=True,
                          type="primary" if st.session_state.chart_show_macd else "secondary"):
                 st.session_state.chart_show_macd = not st.session_state.chart_show_macd
-                st.rerun()
 
-        # === TOOLBAR ROW 3: Timeframe + Clear ===
+        # === TOOLBAR ROW 3: Timeframe ===
         st.markdown('<div style="font-size:10px;color:#484F58;letter-spacing:1px;margin:8px 0 4px 0;">TIMEFRAME · ACTIONS</div>', unsafe_allow_html=True)
         tf1, tf2, tf3, tf4, tf5, tf6 = st.columns([1,1,1,1,1,2])
         with tf1:
             if st.button("30", key="tf_30", use_container_width=True,
                          type="primary" if st.session_state.chart_timeframe == "30" else "secondary"):
                 st.session_state.chart_timeframe = "30"
-                st.rerun()
         with tf2:
             if st.button("50", key="tf_50", use_container_width=True,
                          type="primary" if st.session_state.chart_timeframe == "50" else "secondary"):
                 st.session_state.chart_timeframe = "50"
-                st.rerun()
         with tf3:
             if st.button("80", key="tf_80", use_container_width=True,
                          type="primary" if st.session_state.chart_timeframe == "80" else "secondary"):
                 st.session_state.chart_timeframe = "80"
-                st.rerun()
         with tf4:
             if st.button("100", key="tf_100", use_container_width=True,
                          type="primary" if st.session_state.chart_timeframe == "100" else "secondary"):
                 st.session_state.chart_timeframe = "100"
-                st.rerun()
         with tf5:
             if st.button("ALL", key="tf_all", use_container_width=True,
                          type="primary" if st.session_state.chart_timeframe == "ALL" else "secondary"):
                 st.session_state.chart_timeframe = "ALL"
-                st.rerun()
         with tf6:
             if st.button("🧹 Clear Drawings", key="clear_draw", use_container_width=True):
-                st.rerun()
+                pass
 
         st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
 
@@ -1612,8 +1631,7 @@ def chart_fragment():
 
         subplot_rows = 1
         row_heights_list = [1.0]
-        subplot_titles = None
-        
+
         if show_vol:
             subplot_rows += 1
             row_heights_list.append(0.15)
@@ -1624,11 +1642,9 @@ def chart_fragment():
             subplot_rows += 1
             row_heights_list.append(0.18)
 
-        # Normalize heights
         total = sum(row_heights_list)
         row_heights_list = [h/total for h in row_heights_list]
 
-        # Set price row height dynamically
         if subplot_rows == 1:
             row_heights_list = [1.0]
         else:
@@ -1815,7 +1831,7 @@ def chart_fragment():
             paper_bgcolor="#111620",
             plot_bgcolor="#111620",
             xaxis_rangeslider_visible=False,
-            uirevision=f"chart_{selected}",  # Preserves zoom/pan
+            uirevision=f"chart_{selected}_stable",
             dragmode="pan",
             legend=dict(
                 orientation="h", yanchor="bottom", y=1.01,
@@ -1830,10 +1846,10 @@ def chart_fragment():
             ),
             newshape=dict(
                 line=dict(color="#00D09C", width=2)
-            )
+            ),
+            transition=dict(duration=0),
         )
 
-        # Apply xaxis/yaxis styles to all rows
         for r in range(1, subplot_rows + 1):
             fig.update_xaxes(
                 row=r, col=1,
@@ -1857,7 +1873,6 @@ def chart_fragment():
                 side="right"
             )
 
-        # Main chart yaxis prefix
         fig.update_yaxes(row=1, col=1, tickprefix="₹",
                          showspikes=True, spikecolor="rgba(0, 208, 156, 0.3)",
                          spikethickness=1, spikedash="solid")
@@ -1889,9 +1904,9 @@ def chart_fragment():
             f'<div style="display:flex;justify-content:space-between;align-items:center;'
             f'padding:6px 12px;background:#0D1117;border:1px solid #1E2733;'
             f'border-radius:6px;margin-top:4px;font-size:10px;color:#484F58;">'
-            f'<div>📊 {len(candles)} candles from database</div>'
+            f'<div>📊 {len(candles)} candles · {selected}</div>'
             f'<div>🎨 Draw tools in top-right toolbar</div>'
-            f'<div>🔄 Auto refresh 5s</div>'
+            f'<div>🔄 Auto refresh 8s</div>'
             f'</div>',
             unsafe_allow_html=True
         )
@@ -1900,19 +1915,19 @@ def chart_fragment():
         st.error("Chart temporarily unavailable")
 
 # ============================================================
-# NEWS FRAGMENT - 10 news
+# NEWS FRAGMENT - 6 news, 60 sec
 # ============================================================
 
 @st.fragment(run_every=60)
 def news_fragment():
     try:
         st.markdown('<div class="section-header">📰 Market News</div>', unsafe_allow_html=True)
-        
+
         if time.time() - st.session_state.get("news_update_time", 0) > 60:
-            st.session_state.news = random.sample(FAKE_NEWS_POOL, 10)
+            st.session_state.news = random.sample(FAKE_NEWS_POOL, min(6, len(FAKE_NEWS_POOL)))
             st.session_state.news_update_time = time.time()
 
-        for n in st.session_state.news:
+        for n in st.session_state.news[:6]:
             st.markdown(f'<div class="news">🔔 {n}</div>', unsafe_allow_html=True)
 
         st.markdown(
@@ -1924,13 +1939,18 @@ def news_fragment():
         print(f"News error: {e}")
 
 # ============================================================
-# ORDER SECTION - With Stock Header (matches chart)
+# ORDER SECTION - Stock sync fix
 # ============================================================
 
 def order_section():
-    """Order panel with stock header like chart"""
+    """Order panel - synced with selected stock"""
     prices = st.session_state.market_prices
     stock = st.session_state.selected_stock
+
+    if stock not in prices:
+        update_prices()
+        prices = st.session_state.market_prices
+
     price = prices.get(stock, STOCK_BASE_PRICES[stock])
     base = STOCK_BASE_PRICES[stock]
     change = ((price - base) / base) * 100
@@ -1941,7 +1961,6 @@ def order_section():
 
     st.markdown('<div class="section-header">📝 Place Order</div>', unsafe_allow_html=True)
 
-    # STOCK HEADER (like chart)
     st.markdown(
         f'<div class="order-stock-header">'
         f'<div>'
@@ -1957,7 +1976,6 @@ def order_section():
         unsafe_allow_html=True
     )
 
-    # Position badge
     if owned_qty > 0:
         holding_pnl = (price - avg_price) * owned_qty
         hp_color = "#00D09C" if holding_pnl >= 0 else "#F85149"
@@ -2143,7 +2161,7 @@ def dashboard_page():
 # ============================================================
 # ============================================================
 # PART 3 OF 3
-# All Pages + Sidebar + Router
+# All Pages + Sidebar + Router - Realistic Charts
 # ============================================================
 
 # ============================================================
@@ -2359,7 +2377,7 @@ def leaderboard_page():
     current_time = time.time()
     current_login_id = st.session_state.current_user.get("login_id", "")
 
-    if (st.session_state.leaderboard_cache is None or 
+    if (st.session_state.leaderboard_cache is None or
         current_time - st.session_state.leaderboard_cache_time > LEADERBOARD_CACHE_SECONDS):
         with st.spinner("Loading leaderboard..."):
             users = get_all_users()
@@ -2537,7 +2555,7 @@ def admin_panel():
         st.markdown('<div class="info-box">No audit logs yet</div>', unsafe_allow_html=True)
 
 # ============================================================
-# Analytics Page
+# Analytics Page - REALISTIC CHARTS
 # ============================================================
 
 def analytics_page():
@@ -2570,6 +2588,7 @@ def analytics_page():
         st.markdown('<div class="section-header">📈 P&L Trend</div>', unsafe_allow_html=True)
 
         pnl_data = []
+        pnl_dates = []
         running_pnl = 0.0
         for o in orders:
             if o.get("Status") == "EXECUTED" and "SELL" in o.get("Type", ""):
@@ -2578,33 +2597,114 @@ def analytics_page():
                 brokerage = float(o.get("Brokerage", 0))
                 running_pnl += round((price * qty) - brokerage, 2)
                 pnl_data.append(running_pnl)
+                pnl_dates.append(o.get("Time", ""))
 
         if pnl_data:
             is_profit = pnl_data[-1] >= 0
             line_color = "#00D09C" if is_profit else "#F85149"
-            fill_color = "rgba(0, 208, 156, 0.08)" if is_profit else "rgba(248, 81, 73, 0.08)"
+            fill_color = "rgba(0, 208, 156, 0.06)" if is_profit else "rgba(248, 81, 73, 0.06)"
+            area_color = "rgba(0, 208, 156, 0.15)" if is_profit else "rgba(248, 81, 73, 0.15)"
 
-            fig = go.Figure(data=[go.Scatter(
+            fig = go.Figure()
+
+            # Area fill
+            fig.add_trace(go.Scatter(
+                x=list(range(len(pnl_data))),
                 y=pnl_data,
-                mode='lines+markers',
-                line=dict(color=line_color, width=2),
-                marker=dict(size=4, color=line_color),
+                mode='lines',
+                line=dict(color=line_color, width=2.5, shape='spline'),
                 fill='tozeroy',
                 fillcolor=fill_color,
-                hovertemplate="P&L: ₹%{y:,.2f}<extra></extra>"
-            )])
+                fillgradient=dict(
+                    type="vertical",
+                    colorscale=[[0, area_color], [1, "rgba(0,0,0,0)"]]
+                ) if hasattr(go.Scatter, 'fillgradient') else None,
+                hovertemplate="Trade #%{x}<br>P&L: ₹%{y:,.2f}<extra></extra>",
+                showlegend=False
+            ))
+
+            # Dots on each trade
+            fig.add_trace(go.Scatter(
+                x=list(range(len(pnl_data))),
+                y=pnl_data,
+                mode='markers',
+                marker=dict(
+                    size=6,
+                    color=[("#00D09C" if v >= 0 else "#F85149") for v in pnl_data],
+                    line=dict(width=1.5, color="#0D1117"),
+                    symbol='circle'
+                ),
+                hovertemplate="Trade #%{x}<br>P&L: ₹%{y:,.2f}<extra></extra>",
+                showlegend=False
+            ))
+
+            # Zero line
+            fig.add_hline(
+                y=0, line_dash="dot",
+                line_color="rgba(139, 148, 158, 0.3)",
+                line_width=1
+            )
+
+            # Latest P&L annotation
+            fig.add_annotation(
+                x=len(pnl_data) - 1, y=pnl_data[-1],
+                text=f"₹{pnl_data[-1]:,.0f}",
+                showarrow=True, arrowhead=2,
+                arrowsize=1, arrowwidth=1.5,
+                arrowcolor=line_color,
+                font=dict(size=12, color=line_color, family="JetBrains Mono"),
+                bgcolor="rgba(13, 17, 23, 0.9)",
+                bordercolor=line_color,
+                borderwidth=1,
+                borderpad=4
+            )
+
             fig.update_layout(
                 template="plotly_dark",
-                height=300,
+                height=350,
                 paper_bgcolor="#111620",
                 plot_bgcolor="#111620",
-                margin=dict(l=0, r=0, t=10, b=0),
-                yaxis=dict(gridcolor="#1E2733", tickprefix="₹", tickfont=dict(size=10, color="#8B949E")),
-                xaxis=dict(gridcolor="#1E2733", tickfont=dict(size=10, color="#8B949E")),
-                hoverlabel=dict(bgcolor="#0D1117", bordercolor="#1E2733",
-                                font=dict(size=12, color="#E6EDF3", family="JetBrains Mono"))
+                margin=dict(l=10, r=60, t=20, b=40),
+                yaxis=dict(
+                    gridcolor="rgba(30, 39, 51, 0.5)",
+                    tickprefix="₹",
+                    tickfont=dict(size=10, color="#8B949E", family="JetBrains Mono"),
+                    zeroline=True,
+                    zerolinecolor="rgba(139, 148, 158, 0.2)",
+                    zerolinewidth=1,
+                    side="right",
+                    showspikes=True,
+                    spikecolor="rgba(0, 208, 156, 0.3)",
+                    spikethickness=1,
+                ),
+                xaxis=dict(
+                    gridcolor="rgba(30, 39, 51, 0.3)",
+                    tickfont=dict(size=10, color="#8B949E"),
+                    title=dict(text="Trade Number", font=dict(size=11, color="#484F58")),
+                    showspikes=True,
+                    spikecolor="rgba(0, 208, 156, 0.3)",
+                    spikethickness=1,
+                ),
+                hoverlabel=dict(
+                    bgcolor="#0D1117",
+                    bordercolor="#1E2733",
+                    font=dict(size=12, color="#E6EDF3", family="JetBrains Mono")
+                ),
+                hovermode="x unified",
             )
             st.plotly_chart(fig, use_container_width=True)
+
+            # Summary below chart
+            max_pnl = max(pnl_data)
+            min_pnl = min(pnl_data)
+            sc1, sc2, sc3 = st.columns(3)
+            with sc1:
+                st.markdown(f'<div class="metric-card"><div class="metric-label">Peak P&L</div><div class="metric-value" style="color:#00D09C;">₹{max_pnl:,.2f}</div></div>', unsafe_allow_html=True)
+            with sc2:
+                st.markdown(f'<div class="metric-card"><div class="metric-label">Worst P&L</div><div class="metric-value" style="color:#F85149;">₹{min_pnl:,.2f}</div></div>', unsafe_allow_html=True)
+            with sc3:
+                st.markdown(f'<div class="metric-card"><div class="metric-label">Current P&L</div><div class="metric-value" style="color:{line_color};">₹{pnl_data[-1]:,.2f}</div></div>', unsafe_allow_html=True)
+
         else:
             st.markdown('<div class="info-box">No sell trades yet for P&L chart</div>', unsafe_allow_html=True)
 
@@ -2690,7 +2790,7 @@ def news_page():
     st.markdown('<div class="page-title">📰 Market News</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">Simulated market headlines</div>', unsafe_allow_html=True)
 
-    st.session_state.news = random.sample(FAKE_NEWS_POOL, min(10, len(FAKE_NEWS_POOL)))
+    st.session_state.news = random.sample(FAKE_NEWS_POOL, min(6, len(FAKE_NEWS_POOL)))
     st.session_state.news_update_time = time.time()
 
     for n in st.session_state.news:
@@ -2703,7 +2803,7 @@ def news_page():
     )
 
 # ============================================================
-# Predict Page
+# Predict Page - REALISTIC CHARTS
 # ============================================================
 
 def predict_page():
@@ -2773,42 +2873,121 @@ def predict_page():
         pred_prices.append(round(new_price, 2))
         pred_dates.append(datetime.now() + timedelta(days=i))
 
+    # Confidence band
+    upper_band = [p * 1.015 for p in pred_prices]
+    lower_band = [p * 0.985 for p in pred_prices]
+
+    is_up = pred_prices[-1] >= curr_price
+    forecast_color = "#00D09C" if is_up else "#F85149"
+    forecast_fill = "rgba(0, 208, 156, 0.06)" if is_up else "rgba(248, 81, 73, 0.06)"
+    band_color = "rgba(0, 208, 156, 0.08)" if is_up else "rgba(248, 81, 73, 0.08)"
+
     fig = go.Figure()
+
+    # Confidence band
+    fig.add_trace(go.Scatter(
+        x=pred_dates + pred_dates[::-1],
+        y=upper_band + lower_band[::-1],
+        fill='toself',
+        fillcolor=band_color,
+        line=dict(color="rgba(0,0,0,0)"),
+        hoverinfo='skip',
+        showlegend=True,
+        name="Confidence Band"
+    ))
+
+    # Main forecast line
     fig.add_trace(go.Scatter(
         x=pred_dates, y=pred_prices,
         mode='lines+markers',
         name="AI Forecast",
-        line=dict(color="#00D09C", width=2.5),
-        marker=dict(size=6, color="#00D09C"),
+        line=dict(color=forecast_color, width=3, shape='spline'),
+        marker=dict(
+            size=8, color=forecast_color,
+            line=dict(width=2, color="#0D1117"),
+            symbol='circle'
+        ),
         fill='tozeroy',
-        fillcolor="rgba(0, 208, 156, 0.05)",
-        hovertemplate="₹%{y:.2f}<extra></extra>"
+        fillcolor=forecast_fill,
+        hovertemplate="Day %{x|%b %d}<br>Price: ₹%{y:.2f}<extra></extra>"
+    ))
+
+    # Current price marker
+    fig.add_trace(go.Scatter(
+        x=[pred_dates[0]], y=[curr_price],
+        mode='markers+text',
+        marker=dict(size=12, color="#58A6FF", symbol='diamond',
+                    line=dict(width=2, color="#0D1117")),
+        text=[f"₹{curr_price:.0f}"],
+        textposition="top center",
+        textfont=dict(size=11, color="#58A6FF", family="JetBrains Mono"),
+        name="Current",
+        hovertemplate="Current: ₹%{y:.2f}<extra></extra>"
+    ))
+
+    # Target price marker
+    fig.add_trace(go.Scatter(
+        x=[pred_dates[-1]], y=[pred_prices[-1]],
+        mode='markers+text',
+        marker=dict(size=12, color=forecast_color, symbol='star',
+                    line=dict(width=2, color="#0D1117")),
+        text=[f"₹{pred_prices[-1]:.0f}"],
+        textposition="top center",
+        textfont=dict(size=11, color=forecast_color, family="JetBrains Mono"),
+        name="Target",
+        hovertemplate="Target: ₹%{y:.2f}<extra></extra>"
     ))
 
     if prediction:
         support = prediction.get("support", 0)
         resistance = prediction.get("resistance", 0)
         if support > 0:
-            fig.add_hline(y=support, line_dash="dash", line_color="#F85149", opacity=0.6,
-                          annotation_text=f"Support ₹{support:.2f}",
-                          annotation_font=dict(size=10, color="#F85149"))
+            fig.add_hline(y=support, line_dash="dash", line_color="#F85149", opacity=0.5,
+                          annotation_text=f"Support ₹{support:.0f}",
+                          annotation_position="left",
+                          annotation_font=dict(size=10, color="#F85149", family="JetBrains Mono"),
+                          annotation_bgcolor="rgba(13, 17, 23, 0.8)")
         if resistance > 0:
-            fig.add_hline(y=resistance, line_dash="dash", line_color="#00D09C", opacity=0.6,
-                          annotation_text=f"Resistance ₹{resistance:.2f}",
-                          annotation_font=dict(size=10, color="#00D09C"))
+            fig.add_hline(y=resistance, line_dash="dash", line_color="#00D09C", opacity=0.5,
+                          annotation_text=f"Resistance ₹{resistance:.0f}",
+                          annotation_position="left",
+                          annotation_font=dict(size=10, color="#00D09C", family="JetBrains Mono"),
+                          annotation_bgcolor="rgba(13, 17, 23, 0.8)")
 
     fig.update_layout(
         template="plotly_dark",
-        height=400,
+        height=420,
         paper_bgcolor="#111620",
         plot_bgcolor="#111620",
-        xaxis_title="Date",
-        yaxis_title="Price ₹",
-        margin=dict(l=0, r=0, t=30, b=0),
-        xaxis=dict(gridcolor="#1E2733", tickfont=dict(size=10, color="#8B949E")),
-        yaxis=dict(gridcolor="#1E2733", tickprefix="₹", tickfont=dict(size=10, color="#8B949E")),
-        hoverlabel=dict(bgcolor="#0D1117", bordercolor="#1E2733",
-                        font=dict(size=12, color="#E6EDF3", family="JetBrains Mono"))
+        margin=dict(l=10, r=60, t=30, b=40),
+        xaxis=dict(
+            gridcolor="rgba(30, 39, 51, 0.3)",
+            tickfont=dict(size=10, color="#8B949E"),
+            title=dict(text="Date", font=dict(size=11, color="#484F58")),
+            showspikes=True,
+            spikecolor="rgba(0, 208, 156, 0.3)",
+            spikethickness=1,
+        ),
+        yaxis=dict(
+            gridcolor="rgba(30, 39, 51, 0.5)",
+            tickprefix="₹",
+            tickfont=dict(size=10, color="#8B949E", family="JetBrains Mono"),
+            side="right",
+            showspikes=True,
+            spikecolor="rgba(0, 208, 156, 0.3)",
+            spikethickness=1,
+        ),
+        hoverlabel=dict(
+            bgcolor="#0D1117", bordercolor="#1E2733",
+            font=dict(size=12, color="#E6EDF3", family="JetBrains Mono")
+        ),
+        hovermode="x unified",
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02,
+            xanchor="left", x=0,
+            font=dict(size=10, color="#8B949E"),
+            bgcolor="rgba(0,0,0,0)"
+        ),
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -2860,7 +3039,7 @@ def predict_page():
         pred_fig.add_trace(go.Scatter(
             x=pred_dates, y=pred_prices,
             mode='lines', name="AI Forecast",
-            line=dict(color="#00D09C", width=2)
+            line=dict(color="#00D09C", width=2, shape='spline')
         ))
 
         pred_display = []
@@ -2874,7 +3053,8 @@ def predict_page():
                 y=p_price, line_dash="dot",
                 line_color=color, opacity=0.7,
                 annotation_text=f"{p_type}: ₹{p_price:.2f}",
-                annotation_font=dict(size=10, color=color)
+                annotation_font=dict(size=10, color=color, family="JetBrains Mono"),
+                annotation_bgcolor="rgba(13, 17, 23, 0.8)"
             )
 
             pred_display.append({
@@ -2889,9 +3069,12 @@ def predict_page():
             height=350,
             paper_bgcolor="#111620",
             plot_bgcolor="#111620",
-            margin=dict(l=0, r=0, t=30, b=0),
-            xaxis=dict(gridcolor="#1E2733"),
-            yaxis=dict(gridcolor="#1E2733", tickprefix="₹")
+            margin=dict(l=10, r=60, t=30, b=10),
+            xaxis=dict(gridcolor="rgba(30, 39, 51, 0.3)"),
+            yaxis=dict(gridcolor="rgba(30, 39, 51, 0.5)", tickprefix="₹", side="right",
+                       tickfont=dict(family="JetBrains Mono", size=10, color="#8B949E")),
+            hoverlabel=dict(bgcolor="#0D1117", bordercolor="#1E2733",
+                            font=dict(size=12, color="#E6EDF3", family="JetBrains Mono")),
         )
         st.plotly_chart(pred_fig, use_container_width=True)
 
@@ -3005,5 +3188,5 @@ else:
     dashboard_page()
 
 # ============================================================
-# END OF PART 3 — COMPLETE FILE DONE!
+# END OF PART 3 — VERSION 7.0 COMPLETE!
 # ============================================================
