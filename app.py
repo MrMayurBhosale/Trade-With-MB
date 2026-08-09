@@ -41,6 +41,12 @@ from db import (
 )
 from market import generate_candles, predict_next_move, calculate_portfolio_value
 
+@st.cache_data(ttl=15, show_spinner=False)
+def _cached_predict_next_move(stock):
+    """Thin cache wrapper — same result as predict_next_move(), just avoids
+    recomputing on every rerun within the 15s market-data refresh window."""
+    return predict_next_move(stock)
+
 # ============================================================
 # Page Configuration
 # ============================================================
@@ -50,6 +56,17 @@ st.set_page_config(
     layout="wide",
     page_icon="📈",
     initial_sidebar_state="expanded"
+)
+
+# ============================================================
+# Performance: preconnect to font origins so the browser starts
+# DNS/TLS handshakes before the CSS @import is even parsed.
+# ============================================================
+
+st.markdown(
+    '<link rel="preconnect" href="https://fonts.googleapis.com">'
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
+    unsafe_allow_html=True
 )
 
 # ============================================================
@@ -1621,7 +1638,8 @@ def chart_fragment():
         highs = [c["high"] for c in candles]
         lows = [c["low"] for c in candles]
         closes = [c["close"] for c in candles]
-        volumes = [abs(highs[i] - lows[i]) * 1000 + abs(closes[i] - opens[i]) * 500 for i in range(len(closes))]
+        _o, _h, _l, _c = np.array(opens), np.array(highs), np.array(lows), np.array(closes)
+        volumes = (np.abs(_h - _l) * 1000 + np.abs(_c - _o) * 500).tolist()
 
         # Timeframe range
         tf = st.session_state.chart_timeframe
@@ -1713,8 +1731,9 @@ def chart_fragment():
             )
 
         # === SMA LINES ===
+        _closes_series = pd.Series(closes)
         if st.session_state.chart_show_sma5 and len(closes) >= 5:
-            sma5 = [sum(closes[max(0,i-4):i+1]) / min(5, i+1) for i in range(len(closes))]
+            sma5 = _closes_series.rolling(window=5, min_periods=1).mean().tolist()
             fig.add_trace(
                 go.Scatter(x=dates, y=sma5, name="SMA 5",
                            line=dict(color="#F0B429", width=1.2), opacity=0.85,
@@ -1722,7 +1741,7 @@ def chart_fragment():
                 row=1, col=1
             )
         if st.session_state.chart_show_sma10 and len(closes) >= 10:
-            sma10 = [sum(closes[max(0,i-9):i+1]) / min(10, i+1) for i in range(len(closes))]
+            sma10 = _closes_series.rolling(window=10, min_periods=1).mean().tolist()
             fig.add_trace(
                 go.Scatter(x=dates, y=sma10, name="SMA 10",
                            line=dict(color="#58A6FF", width=1.2), opacity=0.85,
@@ -1730,7 +1749,7 @@ def chart_fragment():
                 row=1, col=1
             )
         if st.session_state.chart_show_sma20 and len(closes) >= 20:
-            sma20 = [sum(closes[max(0,i-19):i+1]) / min(20, i+1) for i in range(len(closes))]
+            sma20 = _closes_series.rolling(window=20, min_periods=1).mean().tolist()
             fig.add_trace(
                 go.Scatter(x=dates, y=sma20, name="SMA 20",
                            line=dict(color="#BC8CFF", width=1.2), opacity=0.85,
@@ -1755,10 +1774,9 @@ def chart_fragment():
 
         # === VOLUME ===
         if show_vol:
-            vol_colors = [
-                "rgba(0, 208, 156, 0.5)" if closes[i] >= opens[i] else "rgba(248, 81, 73, 0.5)"
-                for i in range(len(closes))
-            ]
+            vol_colors = np.where(
+                _c >= _o, "rgba(0, 208, 156, 0.5)", "rgba(248, 81, 73, 0.5)"
+            ).tolist()
             fig.add_trace(
                 go.Bar(x=dates, y=volumes, name="Volume",
                        marker=dict(color=vol_colors), showlegend=False,
@@ -2844,7 +2862,7 @@ def predict_page():
     )
 
     with st.spinner("Analyzing market data from database..."):
-        prediction = predict_next_move(stock)
+        prediction = _cached_predict_next_move(stock)
 
     if prediction:
         col1, col2, col3, col4 = st.columns(4)
