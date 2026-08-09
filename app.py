@@ -1139,12 +1139,12 @@ sync_data()
 # END OF PART 1
 # ============================================================
 # ============================================================
-# PART 2 OF 3
+# PART 2 OF 3 - FIXED
 # Fast Order + Advanced Chart + Watchlist + Dashboard
 # ============================================================
 
 # ============================================================
-# FAST PLACE ORDER - No unnecessary reloads
+# FAST PLACE ORDER
 # ============================================================
 
 def place_order(side, o_type, stock, qty, price):
@@ -1373,7 +1373,7 @@ def top_bar():
             st.rerun()
 
 # ============================================================
-# WATCHLIST FRAGMENT - Smooth 5 sec
+# WATCHLIST FRAGMENT - Instant chart/order update
 # ============================================================
 
 @st.fragment(run_every=5)
@@ -1412,13 +1412,12 @@ def watchlist_fragment():
                 help=f"Holdings: {owned}" if owned > 0 else stock
             ):
                 st.session_state.selected_stock = stock
-                st.rerun()
+                st.rerun(scope="app")  # FULL APP RERUN - Updates chart + order panel
     except Exception as e:
         print(f"Watchlist error: {e}")
 
 # ============================================================
-# ADVANCED CHART FRAGMENT - All features
-# 5 sec refresh, uirevision preserved, drawings, indicators
+# ADVANCED CHART FRAGMENT - All buttons update entire app
 # ============================================================
 
 @st.fragment(run_every=5)
@@ -1493,90 +1492,90 @@ def chart_fragment():
 
         st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
 
-        # === TOOLBAR ROW 1: Chart Type ===
+        # Chart Type
         st.markdown('<div style="font-size:10px;color:#484F58;letter-spacing:1px;margin-bottom:4px;">CHART TYPE</div>', unsafe_allow_html=True)
         ct1, ct2, ct3, ct4 = st.columns([1,1,1,3])
         with ct1:
             if st.button("🕯️ Candle", key="ct_candle", use_container_width=True,
                          type="primary" if st.session_state.chart_type == "candle" else "secondary"):
                 st.session_state.chart_type = "candle"
-                st.rerun()
+                st.rerun(scope="app")
         with ct2:
             if st.button("📈 Line", key="ct_line", use_container_width=True,
                          type="primary" if st.session_state.chart_type == "line" else "secondary"):
                 st.session_state.chart_type = "line"
-                st.rerun()
+                st.rerun(scope="app")
         with ct3:
             if st.button("🏔️ Area", key="ct_area", use_container_width=True,
                          type="primary" if st.session_state.chart_type == "area" else "secondary"):
                 st.session_state.chart_type = "area"
-                st.rerun()
+                st.rerun(scope="app")
 
-        # === TOOLBAR ROW 2: Indicators ===
+        # Indicators
         st.markdown('<div style="font-size:10px;color:#484F58;letter-spacing:1px;margin:8px 0 4px 0;">INDICATORS</div>', unsafe_allow_html=True)
         i1, i2, i3, i4, i5, i6 = st.columns(6)
         with i1:
             if st.button("🟡 SMA5", key="ind_sma5", use_container_width=True,
                          type="primary" if st.session_state.chart_show_sma5 else "secondary"):
                 st.session_state.chart_show_sma5 = not st.session_state.chart_show_sma5
-                st.rerun()
+                st.rerun(scope="app")
         with i2:
             if st.button("🔵 SMA10", key="ind_sma10", use_container_width=True,
                          type="primary" if st.session_state.chart_show_sma10 else "secondary"):
                 st.session_state.chart_show_sma10 = not st.session_state.chart_show_sma10
-                st.rerun()
+                st.rerun(scope="app")
         with i3:
             if st.button("🟣 SMA20", key="ind_sma20", use_container_width=True,
                          type="primary" if st.session_state.chart_show_sma20 else "secondary"):
                 st.session_state.chart_show_sma20 = not st.session_state.chart_show_sma20
-                st.rerun()
+                st.rerun(scope="app")
         with i4:
             if st.button("📊 Vol", key="ind_vol", use_container_width=True,
                          type="primary" if st.session_state.chart_show_volume else "secondary"):
                 st.session_state.chart_show_volume = not st.session_state.chart_show_volume
-                st.rerun()
+                st.rerun(scope="app")
         with i5:
             if st.button("📉 RSI", key="ind_rsi", use_container_width=True,
                          type="primary" if st.session_state.chart_show_rsi else "secondary"):
                 st.session_state.chart_show_rsi = not st.session_state.chart_show_rsi
-                st.rerun()
+                st.rerun(scope="app")
         with i6:
             if st.button("📈 MACD", key="ind_macd", use_container_width=True,
                          type="primary" if st.session_state.chart_show_macd else "secondary"):
                 st.session_state.chart_show_macd = not st.session_state.chart_show_macd
-                st.rerun()
+                st.rerun(scope="app")
 
-        # === TOOLBAR ROW 3: Timeframe + Clear ===
+        # Timeframe + Clear
         st.markdown('<div style="font-size:10px;color:#484F58;letter-spacing:1px;margin:8px 0 4px 0;">TIMEFRAME · ACTIONS</div>', unsafe_allow_html=True)
         tf1, tf2, tf3, tf4, tf5, tf6 = st.columns([1,1,1,1,1,2])
         with tf1:
             if st.button("30", key="tf_30", use_container_width=True,
                          type="primary" if st.session_state.chart_timeframe == "30" else "secondary"):
                 st.session_state.chart_timeframe = "30"
-                st.rerun()
+                st.rerun(scope="app")
         with tf2:
             if st.button("50", key="tf_50", use_container_width=True,
                          type="primary" if st.session_state.chart_timeframe == "50" else "secondary"):
                 st.session_state.chart_timeframe = "50"
-                st.rerun()
+                st.rerun(scope="app")
         with tf3:
             if st.button("80", key="tf_80", use_container_width=True,
                          type="primary" if st.session_state.chart_timeframe == "80" else "secondary"):
                 st.session_state.chart_timeframe = "80"
-                st.rerun()
+                st.rerun(scope="app")
         with tf4:
             if st.button("100", key="tf_100", use_container_width=True,
                          type="primary" if st.session_state.chart_timeframe == "100" else "secondary"):
                 st.session_state.chart_timeframe = "100"
-                st.rerun()
+                st.rerun(scope="app")
         with tf5:
             if st.button("ALL", key="tf_all", use_container_width=True,
                          type="primary" if st.session_state.chart_timeframe == "ALL" else "secondary"):
                 st.session_state.chart_timeframe = "ALL"
-                st.rerun()
+                st.rerun(scope="app")
         with tf6:
             if st.button("🧹 Clear Drawings", key="clear_draw", use_container_width=True):
-                st.rerun()
+                st.rerun(scope="app")
 
         st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
 
@@ -1592,7 +1591,6 @@ def chart_fragment():
         closes = [c["close"] for c in candles]
         volumes = [abs(highs[i] - lows[i]) * 1000 + abs(closes[i] - opens[i]) * 500 for i in range(len(closes))]
 
-        # Timeframe range
         tf = st.session_state.chart_timeframe
         if tf == "30":
             visible_start = max(0, len(dates) - 30)
@@ -1605,14 +1603,12 @@ def chart_fragment():
         else:
             visible_start = 0
 
-        # Determine subplot rows
         show_vol = st.session_state.chart_show_volume
         show_rsi = st.session_state.chart_show_rsi
         show_macd = st.session_state.chart_show_macd
 
         subplot_rows = 1
         row_heights_list = [1.0]
-        subplot_titles = None
         
         if show_vol:
             subplot_rows += 1
@@ -1624,11 +1620,9 @@ def chart_fragment():
             subplot_rows += 1
             row_heights_list.append(0.18)
 
-        # Normalize heights
         total = sum(row_heights_list)
         row_heights_list = [h/total for h in row_heights_list]
 
-        # Set price row height dynamically
         if subplot_rows == 1:
             row_heights_list = [1.0]
         else:
@@ -1642,7 +1636,6 @@ def chart_fragment():
             row_heights=row_heights_list
         )
 
-        # === MAIN CHART ===
         chart_type = st.session_state.chart_type
 
         if chart_type == "candle":
@@ -1660,9 +1653,7 @@ def chart_fragment():
         elif chart_type == "line":
             fig.add_trace(
                 go.Scatter(
-                    x=dates, y=closes,
-                    mode='lines',
-                    name=selected,
+                    x=dates, y=closes, mode='lines', name=selected,
                     line=dict(color=color, width=2),
                     showlegend=False,
                     hovertemplate="₹%{y:.2f}<extra></extra>"
@@ -1672,9 +1663,7 @@ def chart_fragment():
         elif chart_type == "area":
             fig.add_trace(
                 go.Scatter(
-                    x=dates, y=closes,
-                    mode='lines',
-                    name=selected,
+                    x=dates, y=closes, mode='lines', name=selected,
                     line=dict(color=color, width=2),
                     fill='tozeroy',
                     fillcolor="rgba(0, 208, 156, 0.1)" if change >= 0 else "rgba(248, 81, 73, 0.1)",
@@ -1684,7 +1673,7 @@ def chart_fragment():
                 row=1, col=1
             )
 
-        # === SMA LINES ===
+        # SMA
         if st.session_state.chart_show_sma5 and len(closes) >= 5:
             sma5 = [sum(closes[max(0,i-4):i+1]) / min(5, i+1) for i in range(len(closes))]
             fig.add_trace(
@@ -1725,7 +1714,7 @@ def chart_fragment():
 
         current_row = 2
 
-        # === VOLUME ===
+        # Volume
         if show_vol:
             vol_colors = [
                 "rgba(0, 208, 156, 0.5)" if closes[i] >= opens[i] else "rgba(248, 81, 73, 0.5)"
@@ -1739,7 +1728,7 @@ def chart_fragment():
             )
             current_row += 1
 
-        # === RSI ===
+        # RSI
         if show_rsi and len(closes) >= 15:
             def calc_rsi(data, period=14):
                 deltas = [data[i] - data[i-1] for i in range(1, len(data))]
@@ -1771,7 +1760,7 @@ def chart_fragment():
             fig.add_hline(y=30, line_dash="dash", line_color="rgba(0, 208, 156, 0.5)", row=current_row, col=1)
             current_row += 1
 
-        # === MACD ===
+        # MACD
         if show_macd and len(closes) >= 26:
             def ema(data, period):
                 k = 2 / (period + 1)
@@ -1807,7 +1796,6 @@ def chart_fragment():
                 row=current_row, col=1
             )
 
-        # === LAYOUT ===
         fig.update_layout(
             template="plotly_dark",
             height=520,
@@ -1815,7 +1803,7 @@ def chart_fragment():
             paper_bgcolor="#111620",
             plot_bgcolor="#111620",
             xaxis_rangeslider_visible=False,
-            uirevision=f"chart_{selected}",  # Preserves zoom/pan
+            uirevision=f"chart_{selected}",
             dragmode="pan",
             legend=dict(
                 orientation="h", yanchor="bottom", y=1.01,
@@ -1828,18 +1816,14 @@ def chart_fragment():
                 bgcolor="#0D1117", bordercolor="#1E2733",
                 font=dict(size=12, color="#E6EDF3", family="JetBrains Mono")
             ),
-            newshape=dict(
-                line=dict(color="#00D09C", width=2)
-            )
+            newshape=dict(line=dict(color="#00D09C", width=2))
         )
 
-        # Apply xaxis/yaxis styles to all rows
         for r in range(1, subplot_rows + 1):
             fig.update_xaxes(
                 row=r, col=1,
                 gridcolor="rgba(30, 39, 51, 0.5)",
-                showgrid=True,
-                zeroline=False,
+                showgrid=True, zeroline=False,
                 tickfont=dict(size=10, color="#484F58"),
                 showspikes=True,
                 spikecolor="rgba(0, 208, 156, 0.3)",
@@ -1851,13 +1835,11 @@ def chart_fragment():
             fig.update_yaxes(
                 row=r, col=1,
                 gridcolor="rgba(30, 39, 51, 0.5)",
-                showgrid=True,
-                zeroline=False,
+                showgrid=True, zeroline=False,
                 tickfont=dict(size=10, color="#484F58"),
                 side="right"
             )
 
-        # Main chart yaxis prefix
         fig.update_yaxes(row=1, col=1, tickprefix="₹",
                          showspikes=True, spikecolor="rgba(0, 208, 156, 0.3)",
                          spikethickness=1, spikedash="solid")
@@ -1900,7 +1882,7 @@ def chart_fragment():
         st.error("Chart temporarily unavailable")
 
 # ============================================================
-# NEWS FRAGMENT - 10 news
+# NEWS FRAGMENT - 6 news
 # ============================================================
 
 @st.fragment(run_every=60)
@@ -1909,7 +1891,7 @@ def news_fragment():
         st.markdown('<div class="section-header">📰 Market News</div>', unsafe_allow_html=True)
         
         if time.time() - st.session_state.get("news_update_time", 0) > 60:
-            st.session_state.news = random.sample(FAKE_NEWS_POOL, 10)
+            st.session_state.news = random.sample(FAKE_NEWS_POOL, 6)
             st.session_state.news_update_time = time.time()
 
         for n in st.session_state.news:
@@ -1924,11 +1906,11 @@ def news_fragment():
         print(f"News error: {e}")
 
 # ============================================================
-# ORDER SECTION - With Stock Header (matches chart)
+# ORDER SECTION - With Stock Header
 # ============================================================
 
 def order_section():
-    """Order panel with stock header like chart"""
+    """Order panel with stock header - updates on watchlist click"""
     prices = st.session_state.market_prices
     stock = st.session_state.selected_stock
     price = prices.get(stock, STOCK_BASE_PRICES[stock])
@@ -1957,7 +1939,6 @@ def order_section():
         unsafe_allow_html=True
     )
 
-    # Position badge
     if owned_qty > 0:
         holding_pnl = (price - avg_price) * owned_qty
         hp_color = "#00D09C" if holding_pnl >= 0 else "#F85149"
@@ -2021,7 +2002,7 @@ def order_section():
     )
 
 # ============================================================
-# Holdings / OrderBook / Pending Sections
+# Holdings / OrderBook / Pending
 # ============================================================
 
 def holdings_section():
@@ -2139,7 +2120,7 @@ def dashboard_page():
     with col3: pending_orders_section()
 
 # ============================================================
-# END OF PART 2
+# END OF PART 2 - FIXED
 # ============================================================
 # ============================================================
 # PART 3 OF 3
