@@ -1446,7 +1446,8 @@ def watchlist_fragment():
                     st.session_state.selected_stock = stock
                     st.session_state.candle_cache.pop(stock, None)
                     st.session_state.candle_cache_time.pop(stock, None)
-                    st.rerun()
+                    # FULL PAGE RERUN - so chart + order also update
+                    st.session_state._force_full_rerun = True
     except Exception as e:
         print(f"Watchlist error: {e}")
 
@@ -2139,9 +2140,15 @@ def dashboard_page():
 
     st.divider()
 
-    col_watch, col_chart, col_order = st.columns([1, 2.5, 1])
+       col_watch, col_chart, col_order = st.columns([1, 2.5, 1])
     with col_watch:
         watchlist_fragment()
+
+    # Force full rerun when stock changes from watchlist
+    if st.session_state.get("_force_full_rerun", False):
+        st.session_state._force_full_rerun = False
+        st.rerun()
+
     with col_chart:
         chart_fragment()
         st.markdown("<br>", unsafe_allow_html=True)
