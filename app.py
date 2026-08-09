@@ -2140,8 +2140,8 @@ def dashboard_page():
     st.divider()
 
     col_watch, col_chart, col_order = st.columns([1, 2.5, 1])
-        with col_watch:
-        watchlist_section()
+    with col_watch:
+    watchlist_section()
 
     # Force full rerun when stock changes from watchlist
     if st.session_state.get("_force_full_rerun", False):
