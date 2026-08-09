@@ -2140,7 +2140,7 @@ def dashboard_page():
 
     st.divider()
 
-       col_watch, col_chart, col_order = st.columns([1, 2.5, 1])
+    col_watch, col_chart, col_order = st.columns([1, 2.5, 1])
     with col_watch:
         watchlist_fragment()
 
