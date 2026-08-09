@@ -1169,6 +1169,7 @@ sync_data()
 # END OF PART 1
 # ============================================================
 # ============================================================
+# ============================================================
 # PART 2 OF 3
 # Fast Order + Advanced Chart + Watchlist + Dashboard
 # ============================================================
@@ -1403,7 +1404,7 @@ def top_bar():
             st.rerun()
 
 # ============================================================
-# WATCHLIST FRAGMENT - 8 sec, Fixed stock selection
+# WATCHLIST - Normal function
 # ============================================================
 
 def watchlist_section():
@@ -1448,10 +1449,10 @@ def watchlist_section():
         print(f"Watchlist error: {e}")
 
 # ============================================================
-# ADVANCED CHART FRAGMENT - 8 sec, No dim, Stock sync
+# ADVANCED CHART FRAGMENT - 12 sec, No dim, Stock sync
 # ============================================================
 
-@st.fragment(run_every=8)
+@st.fragment(run_every=12)
 def chart_fragment():
     """Advanced trading chart - no dim, proper stock sync"""
     try:
@@ -1466,7 +1467,18 @@ def chart_fragment():
         color = "#00D09C" if change >= 0 else "#F85149"
         arrow = "▲" if change >= 0 else "▼"
 
-        candles = get_candles(selected, limit=100)
+        # CANDLE CACHE - 12 sec sync with chart refresh
+        cache_key = f"candle_{selected}"
+        cache_time_key = f"candle_time_{selected}"
+        now = time.time()
+
+        if (cache_key in st.session_state.candle_cache and
+            now - st.session_state.candle_cache_time.get(cache_time_key, 0) < 12):
+            candles = st.session_state.candle_cache[cache_key]
+        else:
+            candles = get_candles(selected, limit=75)
+            st.session_state.candle_cache[cache_key] = candles
+            st.session_state.candle_cache_time[cache_time_key] = now
 
         if candles and len(candles) > 0:
             day_high = max(c["high"] for c in candles)
@@ -1906,7 +1918,7 @@ def chart_fragment():
             f'border-radius:6px;margin-top:4px;font-size:10px;color:#484F58;">'
             f'<div>📊 {len(candles)} candles · {selected}</div>'
             f'<div>🎨 Draw tools in top-right toolbar</div>'
-            f'<div>🔄 Auto refresh 8s</div>'
+            f'<div>🔄 Auto refresh 12s</div>'
             f'</div>',
             unsafe_allow_html=True
         )
@@ -1915,10 +1927,9 @@ def chart_fragment():
         st.error("Chart temporarily unavailable")
 
 # ============================================================
-# NEWS FRAGMENT - 6 news, 60 sec
+# NEWS - Normal function (no auto refresh)
 # ============================================================
 
-@st.fragment(run_every=60)
 def news_fragment():
     try:
         st.markdown('<div class="section-header">📰 Market News</div>', unsafe_allow_html=True)
@@ -2140,7 +2151,7 @@ def dashboard_page():
     st.divider()
 
     col_watch, col_chart, col_order = st.columns([1, 2.5, 1])
-    
+
     with col_watch:
         watchlist_section()
     with col_chart:
@@ -2156,6 +2167,10 @@ def dashboard_page():
     with col1: holdings_section()
     with col2: orderbook_section()
     with col3: pending_orders_section()
+
+# ============================================================
+# END OF PART 2
+# ============================================================
 
 # ============================================================
 # END OF PART 2
