@@ -2081,9 +2081,9 @@ def order_section():
     )
 
     if owned_qty > 0:
-    buy_brok = round(avg_price * owned_qty * BROKERAGE_RATE, 2)
-    sell_brok = round(price * owned_qty * BROKERAGE_RATE, 2)
-    holding_pnl = ((price - avg_price) * owned_qty) - (buy_brok + sell_brok)
+        buy_brok = round(avg_price * owned_qty * BROKERAGE_RATE, 2)
+        sell_brok = round(price * owned_qty * BROKERAGE_RATE, 2)
+        holding_pnl = ((price - avg_price) * owned_qty) - (buy_brok + sell_brok)
         hp_color = "#00D09C" if holding_pnl >= 0 else "#F85149"
         hp_arrow = "▲" if holding_pnl >= 0 else "▼"
         st.markdown(
