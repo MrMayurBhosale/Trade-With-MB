@@ -729,6 +729,7 @@ hr {
     will-change: auto !important;
 }
 
+[data-testid="stStatusWidget"] { display: none !important; }
 [data-testid="stFragment"] .stSpinner { display: none !important; }
 
 [data-testid="stFragment"][data-stale="true"],
@@ -878,7 +879,7 @@ def init_session_state():
         "chart_show_volume": True,
         "chart_show_rsi": False,
         "chart_show_macd": False,
-        "chart_timeframe": "ALL",
+        "chart_timeframe": "30",                   # ← CHANGE 1: "ALL" → "30"
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -1185,7 +1186,6 @@ sync_data()
 # END OF PART 1
 # ============================================================
 # ============================================================
-# ============================================================
 # PART 2 OF 3
 # Fast Order + Advanced Chart + Watchlist + Dashboard
 # ============================================================
@@ -1195,10 +1195,7 @@ sync_data()
 # ============================================================
 
 def _order_message(kind, text):
-    """Queue a feedback message to be shown in the order panel. Callbacks
-    (on_click) can't reliably render elements directly, so we stash the
-    message here and order_section() displays it right after the rerun —
-    same wording, same place, just rendered a moment later."""
+    """Queue a feedback message to be shown in the order panel."""
     st.session_state["_order_feedback"] = (kind, text)
 
 def place_order(side, o_type, stock, qty, price):
@@ -1500,7 +1497,7 @@ def chart_fragment():
             now - st.session_state.candle_cache_time.get(cache_time_key, 0) < 12):
             candles = st.session_state.candle_cache[cache_key]
         else:
-            candles = get_candles(selected, limit=75)
+            candles = get_candles(selected, limit=30)       # ← CHANGE 2: 75 → 30
             st.session_state.candle_cache[cache_key] = candles
             st.session_state.candle_cache_time[cache_time_key] = now
 
@@ -1703,9 +1700,9 @@ def chart_fragment():
                 go.Candlestick(
                     x=dates, open=opens, high=highs, low=lows, close=closes,
                     name=selected,
-                    increasing=dict(line=dict(color="#00D09C", width=1), fillcolor="#00D09C"),
-                    decreasing=dict(line=dict(color="#F85149", width=1), fillcolor="#F85149"),
-                    whiskerwidth=0.5,
+                    increasing=dict(line=dict(color="#00D09C", width=1.5), fillcolor="#00D09C"),   # ← CHANGE 3a: width=1 → 1.5
+                    decreasing=dict(line=dict(color="#F85149", width=1.5), fillcolor="#F85149"),   # ← CHANGE 3b: width=1 → 1.5
+                    whiskerwidth=0.2,                                                              # ← CHANGE 3c: 0.5 → 0.2
                     showlegend=False
                 ),
                 row=1, col=1
@@ -2206,10 +2203,6 @@ def dashboard_page():
     with col1: holdings_section()
     with col2: orderbook_section()
     with col3: pending_orders_section()
-
-# ============================================================
-# END OF PART 2
-# ============================================================
 
 # ============================================================
 # END OF PART 2
