@@ -1774,6 +1774,55 @@ def chart_fragment():
             row=1, col=1
         )
 
+        # ======= NEW: POSITION LINE ON CHART =======
+        held_qty = get_holding_qty(selected)
+        if held_qty > 0:
+            avg_p = get_holding_avg(selected)
+            pos_value = round(avg_p * held_qty, 2)
+            pos_pnl = round((price - avg_p) * held_qty, 2)
+            pos_pnl_pct = round(((price - avg_p) / avg_p) * 100, 2) if avg_p > 0 else 0
+            pos_color = "#00D09C" if pos_pnl >= 0 else "#F85149"
+            pos_sign = "+" if pos_pnl >= 0 else ""
+
+            # Entry price dashed line
+            fig.add_hline(
+                y=avg_p,
+                line=dict(color="#58A6FF", width=1.2, dash="dash"),
+                opacity=0.7,
+                row=1, col=1
+            )
+
+            # BUY label (left side)
+            fig.add_annotation(
+                x=dates[0],
+                y=avg_p,
+                text=f"  BUY ×{held_qty}   ₹{pos_value:,.0f}  ",
+                showarrow=False,
+                font=dict(size=10, color="#E6EDF3", family="JetBrains Mono"),
+                bgcolor="rgba(88, 166, 255, 0.2)",
+                bordercolor="#58A6FF",
+                borderwidth=1,
+                borderpad=4,
+                xanchor="left",
+                yanchor="bottom",
+            )
+
+            # P&L label (right side)
+            fig.add_annotation(
+                x=dates[-1],
+                y=avg_p,
+                text=f"  {pos_sign}₹{abs(pos_pnl):.2f}   {pos_pnl_pct:+.2f}%  ",
+                showarrow=False,
+                font=dict(size=10, color=pos_color, family="JetBrains Mono"),
+                bgcolor="rgba(248, 81, 73, 0.15)" if pos_pnl < 0 else "rgba(0, 208, 156, 0.15)",
+                bordercolor=pos_color,
+                borderwidth=1,
+                borderpad=4,
+                xanchor="right",
+                yanchor="bottom",
+            )
+        # ======= END POSITION LINE =======
+
         current_row = 2
 
         # === VOLUME ===
