@@ -1,4 +1,4 @@
-# app.py
+# app.py by mayur bhosale
 # TRADE with MB - Paper Trading Platform
 # VERSION 7.0 - Fixed: No Dim + Stock Sync + Realistic Charts
 # PART 1 OF 3
