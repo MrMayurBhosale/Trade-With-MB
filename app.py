@@ -1776,18 +1776,18 @@ def chart_fragment():
 
         # ======= NEW: POSITION LINE ON CHART =======
         if held_qty > 0:
-    avg_p = get_holding_avg(selected)
-    pos_value = round(avg_p * held_qty, 2)
+            avg_p = get_holding_avg(selected)
+            pos_value = round(avg_p * held_qty, 2)
     
-    # Brokerage: Buy time + Sell time (both sides)
-    buy_brokerage = round(avg_p * held_qty * BROKERAGE_RATE, 2)
-    sell_brokerage = round(price * held_qty * BROKERAGE_RATE, 2)
-    total_brokerage = round(buy_brokerage + sell_brokerage, 2)
+            # Brokerage: Buy time + Sell time (both sides)
+            buy_brokerage = round(avg_p * held_qty * BROKERAGE_RATE, 2)
+            sell_brokerage = round(price * held_qty * BROKERAGE_RATE, 2)
+            total_brokerage = round(buy_brokerage + sell_brokerage, 2)
     
-    # Real P&L = Gross P&L - Total Brokerage
-    gross_pnl = (price - avg_p) * held_qty
-    pos_pnl = round(gross_pnl - total_brokerage, 2)
-    pos_pnl_pct = round((pos_pnl / pos_value) * 100, 2) if pos_value > 0 else 0
+            # Real P&L = Gross P&L - Total Brokerage
+            gross_pnl = (price - avg_p) * held_qty
+            pos_pnl = round(gross_pnl - total_brokerage, 2)
+            pos_pnl_pct = round((pos_pnl / pos_value) * 100, 2) if pos_value > 0 else 0
             # Entry price dashed line
             fig.add_hline(
                 y=avg_p,
