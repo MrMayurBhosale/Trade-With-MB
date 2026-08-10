@@ -729,7 +729,6 @@ hr {
     will-change: auto !important;
 }
 
-[data-testid="stStatusWidget"] { display: none !important; }
 [data-testid="stFragment"] .stSpinner { display: none !important; }
 
 [data-testid="stFragment"][data-stale="true"],
@@ -1195,11 +1194,18 @@ sync_data()
 # FAST PLACE ORDER
 # ============================================================
 
+def _order_message(kind, text):
+    """Queue a feedback message to be shown in the order panel. Callbacks
+    (on_click) can't reliably render elements directly, so we stash the
+    message here and order_section() displays it right after the rerun —
+    same wording, same place, just rendered a moment later."""
+    st.session_state["_order_feedback"] = (kind, text)
+
 def place_order(side, o_type, stock, qty, price):
     """Fast order placement with all validations preserved"""
     try:
         if qty <= 0:
-            st.error("Quantity must be greater than 0")
+            _order_message("error", "Quantity must be greater than 0")
             return
 
         prices = st.session_state.market_prices
@@ -1210,7 +1216,7 @@ def place_order(side, o_type, stock, qty, price):
         lower_circuit = base_price * (1 - CIRCUIT_LIMIT)
 
         if exec_price > upper_circuit or exec_price < lower_circuit:
-            st.error(f"⚡ Circuit limit hit! Range: ₹{lower_circuit:.2f} – ₹{upper_circuit:.2f}")
+            _order_message("error", f"⚡ Circuit limit hit! Range: ₹{lower_circuit:.2f} – ₹{upper_circuit:.2f}")
             return
 
         brokerage = round((exec_price * qty) * BROKERAGE_RATE, 2)
@@ -1228,19 +1234,19 @@ def place_order(side, o_type, stock, qty, price):
                     new_avg = round(((existing_avg * existing_qty) + (exec_price * qty)) / new_qty, 2) if new_qty > 0 else exec_price
                     st.session_state.portfolio[stock] = {"qty": new_qty, "avg_price": new_avg}
                     status = "EXECUTED"
-                    st.success(f"✅ Bought {qty} {stock} @ ₹{exec_price:.2f} | Brokerage: ₹{brokerage:.2f}")
+                    _order_message("success", f"✅ Bought {qty} {stock} @ ₹{exec_price:.2f} | Brokerage: ₹{brokerage:.2f}")
                 else:
-                    st.error(f"❌ Insufficient Balance. Required: ₹{cost:,.2f} | Available: ₹{st.session_state.balance:,.2f}")
+                    _order_message("error", f"❌ Insufficient Balance. Required: ₹{cost:,.2f} | Available: ₹{st.session_state.balance:,.2f}")
                     status = "FAILED"
 
             elif side == "SELL":
                 holding = st.session_state.portfolio.get(stock, {})
                 owned_qty = holding.get("qty", 0) if isinstance(holding, dict) else int(holding or 0)
                 if owned_qty == 0:
-                    st.error(f"❌ You don't own {stock}")
+                    _order_message("error", f"❌ You don't own {stock}")
                     status = "REJECTED"
                 elif owned_qty < qty:
-                    st.error(f"❌ Only {owned_qty} shares available")
+                    _order_message("error", f"❌ Only {owned_qty} shares available")
                     status = "REJECTED"
                 else:
                     avg_price = holding.get("avg_price", exec_price) if isinstance(holding, dict) else exec_price
@@ -1255,7 +1261,7 @@ def place_order(side, o_type, stock, qty, price):
                         st.session_state.portfolio.pop(stock, None)
                     status = "EXECUTED"
                     pnl_text = f"Profit: ₹{pnl:.2f}" if pnl >= 0 else f"Loss: ₹{abs(pnl):.2f}"
-                    st.success(f"✅ Sold {qty} {stock} @ ₹{exec_price:.2f} | {pnl_text} | Brokerage: ₹{brokerage:.2f}")
+                    _order_message("success", f"✅ Sold {qty} {stock} @ ₹{exec_price:.2f} | {pnl_text} | Brokerage: ₹{brokerage:.2f}")
 
             order = {
                 "Time": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S"),
@@ -1279,7 +1285,7 @@ def place_order(side, o_type, stock, qty, price):
                 and o.get("price") == price and o.get("qty") == qty
             ]
             if existing_pending:
-                st.warning(f"⚠️ Similar pending order already exists for {stock}")
+                _order_message("warning", f"⚠️ Similar pending order already exists for {stock}")
                 return
             order_type_str = f"LIMIT {side}" if o_type == ORDER_TYPE_LIMIT else f"SL {side}"
             st.session_state.pending_orders.append({
@@ -1290,12 +1296,10 @@ def place_order(side, o_type, stock, qty, price):
                 "placed_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
             })
             save_session_data()
-            st.info(f"📋 {order_type_str} order placed for {qty} {stock} @ ₹{price:.2f}")
-
-        st.rerun()
+            _order_message("info", f"📋 {order_type_str} order placed for {qty} {stock} @ ₹{price:.2f}")
 
     except Exception as e:
-        st.error(f"Order failed: {str(e)}")
+        _order_message("error", f"Order failed: {str(e)}")
 
 # ============================================================
 # Check Pending Orders
@@ -1424,6 +1428,12 @@ def top_bar():
 # WATCHLIST - Normal function
 # ============================================================
 
+def _select_watchlist_stock(stock):
+    if st.session_state.selected_stock != stock:
+        st.session_state.selected_stock = stock
+        st.session_state.candle_cache.pop(stock, None)
+        st.session_state.candle_cache_time.pop(stock, None)
+
 def watchlist_section():
     try:
         prices = st.session_state.market_prices
@@ -1451,17 +1461,14 @@ def watchlist_section():
 
             btn_label = f"{selected_icon} {arrow} {stock}  ₹{price:.2f}  ({change:+.2f}%)"
 
-            if st.button(
+            st.button(
                 btn_label,
                 key=f"watch_{stock}",
                 use_container_width=True,
-                help=f"Holdings: {owned}" if owned > 0 else stock
-            ):
-                if st.session_state.selected_stock != stock:
-                    st.session_state.selected_stock = stock
-                    st.session_state.candle_cache.pop(stock, None)
-                    st.session_state.candle_cache_time.pop(stock, None)
-                    st.rerun()
+                help=f"Holdings: {owned}" if owned > 0 else stock,
+                on_click=_select_watchlist_stock,
+                args=(stock,)
+            )
     except Exception as e:
         print(f"Watchlist error: {e}")
 
@@ -1880,8 +1887,15 @@ def chart_fragment():
             transition=dict(duration=0),
         )
 
+        _apply_tf_range = (
+            st.session_state.get("chart_last_applied_tf") != tf or
+            st.session_state.get("chart_last_applied_tf_stock") != selected
+        )
+        st.session_state["chart_last_applied_tf"] = tf
+        st.session_state["chart_last_applied_tf_stock"] = selected
+
         for r in range(1, subplot_rows + 1):
-            fig.update_xaxes(
+            _xaxis_kwargs = dict(
                 row=r, col=1,
                 gridcolor="rgba(30, 39, 51, 0.5)",
                 showgrid=True,
@@ -1892,8 +1906,10 @@ def chart_fragment():
                 spikethickness=1,
                 spikedash="solid",
                 spikemode="across",
-                range=[dates[visible_start], dates[-1]]
             )
+            if _apply_tf_range:
+                _xaxis_kwargs["range"] = [dates[visible_start], dates[-1]]
+            fig.update_xaxes(**_xaxis_kwargs)
             fig.update_yaxes(
                 row=r, col=1,
                 gridcolor="rgba(30, 39, 51, 0.5)",
@@ -1990,6 +2006,11 @@ def order_section():
 
     st.markdown('<div class="section-header">📝 Place Order</div>', unsafe_allow_html=True)
 
+    _feedback = st.session_state.pop("_order_feedback", None)
+    if _feedback:
+        _fb_kind, _fb_text = _feedback
+        getattr(st, _fb_kind)(_fb_text)
+
     st.markdown(
         f'<div class="order-stock-header">'
         f'<div>'
@@ -2050,12 +2071,12 @@ def order_section():
 
     col_b, col_s = st.columns(2)
     with col_b:
-        if st.button("▲ BUY", use_container_width=True, type="primary", key="buy_btn"):
-            place_order("BUY", order_type, stock, qty, limit_price)
+        st.button("▲ BUY", use_container_width=True, type="primary", key="buy_btn",
+                  on_click=place_order, args=("BUY", order_type, stock, qty, limit_price))
     with col_s:
         if owned_qty > 0:
-            if st.button(f"▼ SELL ({owned_qty})", use_container_width=True, key="sell_btn"):
-                place_order("SELL", order_type, stock, min(qty, owned_qty), limit_price)
+            st.button(f"▼ SELL ({owned_qty})", use_container_width=True, key="sell_btn",
+                      on_click=place_order, args=("SELL", order_type, stock, min(qty, owned_qty), limit_price))
         else:
             st.button("▼ SELL", disabled=True, use_container_width=True, key="sell_btn_dis", help="Buy first")
 
