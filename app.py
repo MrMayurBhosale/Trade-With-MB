@@ -47,6 +47,12 @@ def _cached_predict_next_move(stock):
     recomputing on every rerun within the 15s market-data refresh window."""
     return predict_next_move(stock)
 
+@st.cache_data(ttl=20, show_spinner=False)
+def _cached_db_health():
+    """Thin cache wrapper — same result as check_db_health(), just avoids
+    pinging MongoDB on every single rerun/click (big perf win on every tap)."""
+    return check_db_health()
+
 # ============================================================
 # Page Configuration
 # ============================================================
@@ -815,9 +821,66 @@ h3 { font-size: 15px !important; font-weight: 600 !important; color: var(--text-
     .stock-price { font-size: 18px !important; }
     .stock-price-sm { font-size: 16px !important; }
     [data-testid="stMetricValue"] { font-size: 16px !important; }
+
+    /* Bigger tap targets + tighter spacing so the app feels native on phones */
+    .stButton > button {
+        min-height: 42px !important;
+        padding: 10px 14px !important;
+        font-size: 13px !important;
+    }
+    [data-testid="stHorizontalBlock"] {
+        gap: 8px !important;
+    }
+    [data-testid="column"] {
+        min-width: 100% !important;
+    }
+    [data-testid="stDataFrame"] {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    [data-testid="stSidebar"] > div { padding: 14px 10px !important; }
+    [data-testid="stNumberInput"] input,
+    [data-testid="stTextInput"] input,
+    [data-baseweb="select"] { font-size: 16px !important; } /* prevents iOS auto-zoom on focus */
+    .section-header { font-size: 12px !important; margin-bottom: 10px !important; }
+    .stock-header, .order-stock-header { padding: 10px 12px !important; }
 }
 
 .stApp { transform: translateZ(0); }
+
+/* ============================================================
+   FORCE DARK THEME — always this palette, never white
+   Streamlit lets a visitor switch to "Light" / "System" from the
+   top-right menu; when that happens it swaps its own internal
+   CSS variables (and the dataframe/canvas colors) to a light
+   palette, which is the white-background bug being reported.
+   Overriding Streamlit's own variables + removing the switcher
+   keeps every part of the app (including tables like Holdings /
+   Pending Orders) locked to this dark theme regardless of the
+   visitor's OS or browser setting.
+   ============================================================ */
+:root, html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+    --background-color: #080C10 !important;
+    --secondary-background-color: #111620 !important;
+    --text-color: #E6EDF3 !important;
+    --primary-color: #00D09C !important;
+    color-scheme: dark !important;
+}
+
+[data-testid="stHeader"] {
+    background: var(--bg-primary) !important;
+}
+
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"] {
+    background: var(--bg-primary) !important;
+}
+
+/* Hide the hamburger menu (Settings → theme picker lives here) so the
+   theme can't be switched to Light/System at all. */
+#MainMenu { visibility: hidden !important; }
+[data-testid="stToolbar"] { visibility: hidden !important; height: 0 !important; }
+footer { visibility: hidden !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -831,10 +894,10 @@ st.markdown(
 )
 
 # ============================================================
-# MongoDB Health Check
+# MongoDB Health Check (cached — avoids a DB ping on every rerun)
 # ============================================================
 
-if not check_db_health():
+if not _cached_db_health():
     st.error("❌ MongoDB is not connected!")
     st.stop()
 
