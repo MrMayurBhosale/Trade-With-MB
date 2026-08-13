@@ -2203,17 +2203,17 @@ def order_section():
         col_b, col_s = st.columns(2)
         with col_b:
             st.form_submit_button(
-                "▲ BUY", use_container_width=True, type="primary", key="buy_btn",
+                "▲ BUY", use_container_width=True, type="primary",
                 on_click=place_order, args=("BUY", order_type, stock, qty, limit_price)
             )
         with col_s:
             if owned_qty > 0:
                 st.form_submit_button(
-                    f"▼ SELL ({owned_qty})", use_container_width=True, key="sell_btn",
+                    f"▼ SELL ({owned_qty})", use_container_width=True,
                     on_click=place_order, args=("SELL", order_type, stock, min(qty, owned_qty), limit_price)
                 )
             else:
-                st.form_submit_button("▼ SELL", disabled=True, use_container_width=True, key="sell_btn_dis", help="Buy first")
+                st.form_submit_button("▼ SELL", disabled=True, use_container_width=True, help="Buy first")
 
     st.markdown(
         f'<div style="margin-top:12px; padding:10px 14px; background:#0D1117; border:1px solid #1E2733; border-radius:8px;">'
