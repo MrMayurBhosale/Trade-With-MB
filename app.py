@@ -2177,43 +2177,42 @@ def order_section():
             unsafe_allow_html=True
         )
 
-    with st.form(key=f"order_form_{stock}", clear_on_submit=False):
-        order_type = st.selectbox(
-            "Order Type",
-            [ORDER_TYPE_MARKET, ORDER_TYPE_LIMIT, ORDER_TYPE_SL],
-            key="order_type_select"
-        )
-        qty = st.number_input("Quantity", min_value=1, max_value=100, value=1, step=1, key="order_qty_input")
+    order_type = st.selectbox(
+        "Order Type",
+        [ORDER_TYPE_MARKET, ORDER_TYPE_LIMIT, ORDER_TYPE_SL],
+        key="order_type_select"
+    )
+    qty = 1
+    st.markdown(
+        '<div style="font-size:11px;color:#8B949E;margin:-4px 0 10px 0;">Quantity: <b style="color:#E6EDF3;">1</b> (fixed per order)</div>',
+        unsafe_allow_html=True
+    )
 
-        limit_price = price
-        if order_type != ORDER_TYPE_MARKET:
-            limit_price = st.number_input("Trigger Price", min_value=0.01, value=float(round(price, 2)), step=0.05, key="order_trigger_price")
+    limit_price = price
+    if order_type != ORDER_TYPE_MARKET:
+        limit_price = st.number_input("Trigger Price", min_value=0.01, value=float(round(price, 2)), step=0.05)
 
-        est_brokerage = round(price * qty * BROKERAGE_RATE, 2)
-        total_cost = round(price * qty + est_brokerage, 2)
-        st.markdown(
-            f'<div class="brokerage-info">'
-            f'<div style="display:flex;justify-content:space-between;"><span>Brokerage</span><span>₹{est_brokerage:.2f}</span></div>'
-            f'<div style="display:flex;justify-content:space-between;margin-top:4px;color:#E6EDF3;font-weight:600;">'
-            f'<span>Total Cost</span><span>₹{total_cost:,.2f}</span></div>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
+    est_brokerage = round(price * qty * BROKERAGE_RATE, 2)
+    total_cost = round(price * qty + est_brokerage, 2)
+    st.markdown(
+        f'<div class="brokerage-info">'
+        f'<div style="display:flex;justify-content:space-between;"><span>Brokerage</span><span>₹{est_brokerage:.2f}</span></div>'
+        f'<div style="display:flex;justify-content:space-between;margin-top:4px;color:#E6EDF3;font-weight:600;">'
+        f'<span>Total Cost</span><span>₹{total_cost:,.2f}</span></div>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
 
-        col_b, col_s = st.columns(2)
-        with col_b:
-            st.form_submit_button(
-                "▲ BUY", use_container_width=True, type="primary",
-                on_click=place_order, args=("BUY", order_type, stock, qty, limit_price)
-            )
-        with col_s:
-            if owned_qty > 0:
-                st.form_submit_button(
-                    f"▼ SELL ({owned_qty})", use_container_width=True,
-                    on_click=place_order, args=("SELL", order_type, stock, min(qty, owned_qty), limit_price)
-                )
-            else:
-                st.form_submit_button("▼ SELL", disabled=True, use_container_width=True, help="Buy first")
+    col_b, col_s = st.columns(2)
+    with col_b:
+        st.button("▲ BUY", use_container_width=True, type="primary", key="buy_btn",
+                  on_click=place_order, args=("BUY", order_type, stock, qty, limit_price))
+    with col_s:
+        if owned_qty > 0:
+            st.button(f"▼ SELL ({owned_qty})", use_container_width=True, key="sell_btn",
+                      on_click=place_order, args=("SELL", order_type, stock, min(qty, owned_qty), limit_price))
+        else:
+            st.button("▼ SELL", disabled=True, use_container_width=True, key="sell_btn_dis", help="Buy first")
 
     st.markdown(
         f'<div style="margin-top:12px; padding:10px 14px; background:#0D1117; border:1px solid #1E2733; border-radius:8px;">'
