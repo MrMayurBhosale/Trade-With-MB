@@ -1,6 +1,6 @@
 # app.py by mayur bhosale           
 # TRADE with MB - Paper Trading Platform
-# VERSION 7.0 - Fixed: No Dim + Stock Sync + Realistic Charts
+# VERSION 7.1 - Fixed: No Dim + Stock Sync + Realistic Charts + Fast Candles + Correct Qty
 # PART 1 OF 3
 
 import bcrypt
@@ -52,6 +52,13 @@ def _cached_db_health():
     """Thin cache wrapper — same result as check_db_health(), just avoids
     pinging MongoDB on every single rerun/click (big perf win on every tap)."""
     return check_db_health()
+
+@st.cache_data(ttl=10, show_spinner=False)
+def _cached_get_candles(stock, limit):
+    """Thin cache wrapper — same result as get_candles(), avoids hitting
+    MongoDB again and again within a 10s window so the chart loads instantly
+    instead of waiting on a fresh DB round-trip every rerun/stock switch."""
+    return get_candles(stock, limit=limit)
 
 # ============================================================
 # Page Configuration
@@ -1560,7 +1567,7 @@ def chart_fragment():
             now - st.session_state.candle_cache_time.get(cache_time_key, 0) < 12):
             candles = st.session_state.candle_cache[cache_key]
         else:
-            candles = get_candles(selected, limit=30)       # ← CHANGE 2: 75 → 30
+            candles = _cached_get_candles(selected, 30)     # ← fast: cached, no repeated DB round-trip
             st.session_state.candle_cache[cache_key] = candles
             st.session_state.candle_cache_time[cache_time_key] = now
 
@@ -2101,11 +2108,15 @@ def news_fragment():
         print(f"News error: {e}")
 
 # ============================================================
-# ORDER SECTION - Stock sync fix
+# ORDER SECTION - Stock sync fix + qty-commit fix (st.form)
 # ============================================================
 
 def order_section():
-    """Order panel - synced with selected stock"""
+    """Order panel - synced with selected stock.
+    Wrapped in st.form so the Quantity / Trigger Price the user typed is
+    fully committed BEFORE Buy/Sell fires — this is what fixes the bug
+    where an order always executed with qty=1 regardless of what was
+    entered in the number input."""
     prices = st.session_state.market_prices
     stock = st.session_state.selected_stock
 
@@ -2166,38 +2177,43 @@ def order_section():
             unsafe_allow_html=True
         )
 
-    order_type = st.selectbox(
-        "Order Type",
-        [ORDER_TYPE_MARKET, ORDER_TYPE_LIMIT, ORDER_TYPE_SL],
-        key="order_type_select"
-    )
-    qty = st.number_input("Quantity", min_value=1, max_value=100, value=1, step=1)
+    with st.form(key=f"order_form_{stock}", clear_on_submit=False):
+        order_type = st.selectbox(
+            "Order Type",
+            [ORDER_TYPE_MARKET, ORDER_TYPE_LIMIT, ORDER_TYPE_SL],
+            key="order_type_select"
+        )
+        qty = st.number_input("Quantity", min_value=1, max_value=100, value=1, step=1, key="order_qty_input")
 
-    limit_price = price
-    if order_type != ORDER_TYPE_MARKET:
-        limit_price = st.number_input("Trigger Price", min_value=0.01, value=float(round(price, 2)), step=0.05)
+        limit_price = price
+        if order_type != ORDER_TYPE_MARKET:
+            limit_price = st.number_input("Trigger Price", min_value=0.01, value=float(round(price, 2)), step=0.05, key="order_trigger_price")
 
-    est_brokerage = round(price * qty * BROKERAGE_RATE, 2)
-    total_cost = round(price * qty + est_brokerage, 2)
-    st.markdown(
-        f'<div class="brokerage-info">'
-        f'<div style="display:flex;justify-content:space-between;"><span>Brokerage</span><span>₹{est_brokerage:.2f}</span></div>'
-        f'<div style="display:flex;justify-content:space-between;margin-top:4px;color:#E6EDF3;font-weight:600;">'
-        f'<span>Total Cost</span><span>₹{total_cost:,.2f}</span></div>'
-        f'</div>',
-        unsafe_allow_html=True
-    )
+        est_brokerage = round(price * qty * BROKERAGE_RATE, 2)
+        total_cost = round(price * qty + est_brokerage, 2)
+        st.markdown(
+            f'<div class="brokerage-info">'
+            f'<div style="display:flex;justify-content:space-between;"><span>Brokerage</span><span>₹{est_brokerage:.2f}</span></div>'
+            f'<div style="display:flex;justify-content:space-between;margin-top:4px;color:#E6EDF3;font-weight:600;">'
+            f'<span>Total Cost</span><span>₹{total_cost:,.2f}</span></div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
 
-    col_b, col_s = st.columns(2)
-    with col_b:
-        st.button("▲ BUY", use_container_width=True, type="primary", key="buy_btn",
-                  on_click=place_order, args=("BUY", order_type, stock, qty, limit_price))
-    with col_s:
-        if owned_qty > 0:
-            st.button(f"▼ SELL ({owned_qty})", use_container_width=True, key="sell_btn",
-                      on_click=place_order, args=("SELL", order_type, stock, min(qty, owned_qty), limit_price))
-        else:
-            st.button("▼ SELL", disabled=True, use_container_width=True, key="sell_btn_dis", help="Buy first")
+        col_b, col_s = st.columns(2)
+        with col_b:
+            st.form_submit_button(
+                "▲ BUY", use_container_width=True, type="primary", key="buy_btn",
+                on_click=place_order, args=("BUY", order_type, stock, qty, limit_price)
+            )
+        with col_s:
+            if owned_qty > 0:
+                st.form_submit_button(
+                    f"▼ SELL ({owned_qty})", use_container_width=True, key="sell_btn",
+                    on_click=place_order, args=("SELL", order_type, stock, min(qty, owned_qty), limit_price)
+                )
+            else:
+                st.form_submit_button("▼ SELL", disabled=True, use_container_width=True, key="sell_btn_dis", help="Buy first")
 
     st.markdown(
         f'<div style="margin-top:12px; padding:10px 14px; background:#0D1117; border:1px solid #1E2733; border-radius:8px;">'
